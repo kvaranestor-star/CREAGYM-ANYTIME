@@ -5,13 +5,16 @@
 
 -- КЛІЄНТИ -----------------------------------------------------
 create table if not exists clients (
-  id          uuid primary key default gen_random_uuid(),
-  phone       text unique not null,        -- ідентифікатор + канал SMS
-  name        text not null,
-  card_token  text,                        -- токен картки Monobank (НЕ номер!)
-  card_last4  text,                         -- '4421' лише для показу
-  created_at  timestamptz default now()
+  id            uuid primary key default gen_random_uuid(),
+  phone         text unique not null,        -- ідентифікатор + канал SMS
+  name          text not null,
+  password_hash text,                         -- scrypt salt:hash (вхід за паролем)
+  card_token    text,                        -- токен картки Monobank (НЕ номер!)
+  card_last4    text,                          -- '4421' лише для показу
+  created_at    timestamptz default now()
 );
+-- якщо таблиця вже існувала — додати нову колонку:
+alter table clients add column if not exists password_hash text;
 
 -- СЕСІЇ (тренування) -----------------------------------------
 create table if not exists sessions (
@@ -35,13 +38,18 @@ create table if not exists otp_codes (
   id          bigint generated always as identity primary key,
   phone       text not null,
   code_hash   text not null,                -- sha256(phone:code), не сам код
-  name        text,                          -- ім'я з кроку реєстрації
+  purpose     text default 'register',       -- 'register' | 'reset'
+  payload     text,                          -- JSON: {name, password_hash} для реєстрації
+  name        text,
   expires_at  timestamptz not null,
   attempts    int default 0,
   used        boolean default false,
   created_at  timestamptz default now()
 );
 create index if not exists otp_phone_idx on otp_codes(phone, created_at desc);
+-- якщо таблиця вже існувала:
+alter table otp_codes add column if not exists purpose text default 'register';
+alter table otp_codes add column if not exists payload text;
 
 -- СЕСІЇ ЗАСТОСУНКУ (opaque-токени входу клієнта) -------------
 create table if not exists app_sessions (
