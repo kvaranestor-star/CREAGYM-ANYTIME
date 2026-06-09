@@ -1,0 +1,5 @@
+{
+  "name": "tempo",
+  "private": true,
+  "engines": { "node": ">=18" }
+}
