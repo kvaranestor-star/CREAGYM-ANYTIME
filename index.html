@@ -372,13 +372,22 @@ const api = {
 
   logout(){ this.token=null; store.del('tempo_session'); this.user={ id:null, name:null, phone:null, cardLast4:null }; },
 
-  // Прив'язка картки: токенізація + згода на MIT (merchant-initiated).
-  // TODO Monobank: створити токен картки для подальших списань без клієнта.
+  // Прив'язка картки — лише для самого клієнта (за його токеном).
+  // TODO Monobank: токенізація + згода на MIT. Поки що — демонстраційний last4.
   async attachCard(){
-    await wait(700);
-    this.user.cardLast4 = '4421';
-    this.user.name = 'Ви';
-    return true;
+    if(this._demo || !this.token){ this.user.cardLast4='4242'; return true; } // прев'ю/демо
+    try{
+      const r = await fetch('/api/attach-card', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token },
+        body: JSON.stringify({})
+      });
+      if(!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      this.user.cardLast4 = d.card_last4;
+      const s = store.get('tempo_session'); if(s && s.client){ s.client.card_last4 = d.card_last4; store.set('tempo_session', s); }
+      return true;
+    }catch(err){ console.warn('attach-card', err.message); return false; }
   },
 
   // Старт сесії: 1) preauth hold ₴HOLD  2) відкрити замок (ESP32)
@@ -574,8 +583,9 @@ $('#cardModal').onclick=e=>{ if(e.target.id==='cardModal'){ startAfterCard=false
 
 $('#btnAttach').onclick=async e=>{
   e.target.disabled=true; e.target.textContent='Прив\u0027язуємо…';
-  await api.attachCard();
+  const ok=await api.attachCard();
   e.target.disabled=false; e.target.textContent='Прив\u0027язати картку';
+  if(!ok){ toast('Не вдалося прив\u0027язати картку',true); return; }
   closeCard(); renderHome();
   toast('Картка прив\u0027язана · списань зараз немає');
   if(startAfterCard){ startAfterCard=false; doStart(); }
