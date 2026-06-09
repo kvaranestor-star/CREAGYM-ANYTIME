@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>tempo · панель власника</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0D10; --surface:#14171C; --surface2:#1C2027; --line:#2A2F38;
+    --text:#F2F4F7; --muted:#8A93A2; --faint:#5A626E;
+    --go:#FFD300; --danger:#FF5247; --ok:#3DDC84; --r:16px;
+    --mono:'Space Mono',ui-monospace,monospace; --disp:'Space Grotesk',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);min-height:100dvh;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .shell{max-width:1180px;margin:0 auto;padding:22px clamp(16px,4vw,34px) 60px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:6px 2px 26px;flex-wrap:wrap}
+  .brand{font-family:var(--disp);font-weight:700;font-size:24px;letter-spacing:-.5px;display:flex;align-items:center;gap:10px}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--go);box-shadow:0 0 16px var(--go)}
+  .brand small{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--faint);text-transform:uppercase;font-weight:400;margin-left:6px}
+  .head-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .pill{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:13px}
+  .pill .led{width:8px;height:8px;border-radius:50%}
+  .led.on{background:var(--ok);box-shadow:0 0 10px var(--ok)} .led.off{background:var(--danger);box-shadow:0 0 10px var(--danger)} .led.warn{background:var(--go);box-shadow:0 0 10px var(--go)}
+  .clientlink{font-size:13px;color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--faint)}
+
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);margin:0 0 14px}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+  .kpi span{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint)}
+  .kpi b{display:block;font-family:var(--mono);font-weight:700;font-size:30px;letter-spacing:-1px;margin-top:8px;font-variant-numeric:tabular-nums}
+  .kpi i{font-style:normal;font-size:13px;color:var(--muted);font-family:var(--body)}
+  .kpi .delta{font-size:12px;color:var(--ok);margin-top:6px;display:block}
+
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+  .card+.card{margin-top:18px}
+
+  /* live session */
+  .livewrap{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .clock{font-family:var(--mono);font-weight:700;font-size:46px;letter-spacing:-2px;font-variant-numeric:tabular-nums;line-height:1}
+  .livecost{font-family:var(--disp);font-size:20px;margin-top:6px}
+  .livecost b{font-weight:700}
+  .live-meta{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:11px;letter-spacing:.5px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--muted)}
+  .chip b{color:var(--text)}
+  .idlebox{text-align:center;color:var(--faint);padding:24px 0;font-size:14px}
+
+  /* hardware */
+  .hw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hwitem{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:13px 14px;display:flex;align-items:center;justify-content:space-between}
+  .hwitem .n{font-size:13px}
+  .hwitem .n span{display:block;font-size:11px;color:var(--faint);margin-top:2px}
+  .hwitem .s{font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:7px}
+  .esp{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .esp b{font-family:var(--mono);color:var(--text)}
+
+  /* alerts */
+  .alert{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .alert:last-child{border-bottom:0}
+  .alert .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:14px;background:var(--surface2)}
+  .alert.crit .ic{background:rgba(255,82,71,.15);color:var(--danger)}
+  .alert .t span{display:block;font-size:12px;color:var(--faint);margin-top:2px}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);font-weight:400;padding:0 0 12px;border-bottom:1px solid var(--line)}
+  td{padding:13px 0;border-bottom:1px solid var(--line)}
+  tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:var(--mono)}
+  td.r,th.r{text-align:right}
+  .tagok{color:var(--ok)}
+
+  /* tariffs editor */
+  .tarrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+  .tarrow:last-child{border-bottom:0}
+  .tarrow .nm{font-family:var(--disp);font-weight:500}
+  .tarrow .nm span{display:block;font-size:12px;color:var(--faint);font-family:var(--body);font-weight:400}
+  .tarrow input{width:84px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 10px;font-family:var(--mono);font-size:14px;text-align:right}
+  .tarrow input:focus{outline:none;border-color:var(--go)}
+  .tarrow .u{font-size:12px;color:var(--muted)}
+  .settings{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .set{flex:1;min-width:130px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .set label{font-size:11px;color:var(--faint);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase}
+  .set input{width:100%;background:transparent;border:0;color:var(--text);font-family:var(--mono);font-size:16px;margin-top:6px}
+  .set input:focus{outline:none}
+  .save{appearance:none;border:0;margin-top:16px;background:var(--go);color:#000;font-family:var(--disp);font-weight:700;font-size:14px;padding:13px 20px;border-radius:11px;cursor:pointer}
+  .save:active{transform:scale(.99)}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:#fff;color:#000;font-size:13px;font-weight:500;padding:11px 16px;border-radius:12px;transition:.25s;pointer-events:none;z-index:10}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hidden{display:none !important}
+
+  @media(max-width:860px){.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
+
+  /* login gate */
+  .login-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px}
+  .login{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px}
+  .login .brand{margin-bottom:22px}
+  .login h2{margin:0;font-family:var(--disp);font-size:22px;font-weight:700;letter-spacing:-.5px}
+  .login p.s{margin:6px 0 22px;color:var(--muted);font-size:13.5px}
+  .login .f{margin-bottom:13px}
+  .login label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin:0 0 7px}
+  .login input{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:14px;font-size:15px;font-family:var(--body)}
+  .login input:focus{outline:none;border-color:var(--go)}
+  .login .enter{appearance:none;border:0;width:100%;margin-top:8px;background:var(--go);color:#000;font-family:var(--disp);font-weight:700;font-size:16px;padding:15px;border-radius:12px;cursor:pointer}
+  .login .demohint{font-size:11px;color:var(--faint);text-align:center;margin-top:14px;line-height:1.6}
+  .login .err{color:var(--danger);font-size:12.5px;margin:4px 0 0;min-height:16px}
+  /* integrations */
+  .intg{display:flex;flex-direction:column;gap:14px}
+  .intg .row{background:var(--surface2);border:1px solid var(--line);border-radius:13px;padding:15px}
+  .intg .rh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .intg .rh .nm{font-family:var(--disp);font-weight:600;font-size:15px;display:flex;align-items:center;gap:9px}
+  .intg .rh .nm .led{width:8px;height:8px;border-radius:50%}
+  .intg .rh .badge{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--faint)}
+  .intg .if{margin-bottom:9px}
+  .intg .if:last-child{margin-bottom:0}
+  .intg label{display:block;font-size:11px;color:var(--faint);margin:0 0 5px}
+  .intg input{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:11px 12px;font-family:var(--mono);font-size:13px}
+  .intg input:focus{outline:none;border-color:var(--go)}
+  .intg .acts{display:flex;gap:8px;margin-top:11px}
+  .intg .btn{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:12.5px;font-weight:600;padding:9px 13px;border-radius:9px;cursor:pointer;font-family:var(--body)}
+  .intg .btn.pri{background:var(--go);color:#000;border-color:var(--go)}
+  .intg .note{font-size:11px;color:var(--faint);margin-top:12px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<!-- ====== ADMIN LOGIN (no registration) ====== -->
+<div class="login-wrap" id="login">
+  <div class="login">
+    <div class="brand"><span class="dot"></span>tempo <small>панель</small></div>
+    <h2>Вхід для власника</h2>
+    <p class="s">Доступ лише за виданими обліковими даними. Реєстрації немає.</p>
+    <div class="f"><label>Пошта</label><input id="admEmail" type="email" placeholder="owner@tempo.ua" autocomplete="username"></div>
+    <div class="f"><label>Пароль</label><input id="admPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <p class="err" id="admErr"></p>
+    <button class="enter" id="admEnter">Увійти</button>
+    <p class="demohint">Демо-доступ:<br>owner@tempo.ua · tempo2026</p>
+  </div>
+</div>
+
+<!-- ====== DASHBOARD ====== -->
+<div class="shell hidden" id="dash">
+
+  <header>
+    <div class="brand"><span class="dot"></span>tempo <small>панель власника</small></div>
+    <div class="head-right">
+      <div class="pill"><span class="led on" id="gymLed"></span><span id="gymState">Зал вільний</span></div>
+      <div class="pill"><span class="led on" id="espLed"></span>ESP32 онлайн</div>
+      <a class="clientlink" href="index.html">Клієнтський застосунок →</a>
+      <a class="clientlink" id="admLogout">Вийти</a>
+    </div>
+  </header>
+
+  <!-- KPI -->
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <!-- LEFT -->
+    <div>
+      <div class="card">
+        <p class="eyebrow">Зараз у залі</p>
+        <div id="liveBlock"></div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Сесії сьогодні</p>
+        <table>
+          <thead><tr><th>Час</th><th>Клієнт</th><th class="mono">Тривалість</th><th class="mono r">Сума</th></tr></thead>
+          <tbody id="sessRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="card">
+        <p class="eyebrow">Обладнання · ESP32-S3</p>
+        <div class="hw" id="hw"></div>
+        <div class="esp">
+          <span>Heartbeat</span><b id="hb">щойно</b>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Сповіщення</p>
+        <div id="alerts"></div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Тарифи та ліміти</p>
+        <div id="tarBox"></div>
+        <div class="settings">
+          <div class="set"><label>Депозит-блок ₴</label><input id="setHold" value="300" inputmode="numeric"></div>
+          <div class="set"><label>Ліміт сесії, год</label><input id="setCap" value="3" inputmode="numeric"></div>
+          <div class="set"><label>Авто-стоп без руху, хв</label><input id="setIdle" value="10" inputmode="numeric"></div>
+        </div>
+        <button class="save" id="saveBtn">Зберегти налаштування</button>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Інтеграції</p>
+        <div class="intg" id="intg"></div>
+        <p class="note">Токени зберігаються на боці сервера (Vercel env / Supabase), а не в браузері. Тут показано замасковано. TurboSMS використовується і для кодів підтвердження клієнтам.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   tempo — панель власника (демо на mock-даних).
+   Підключення: Supabase realtime для live-сесій/сповіщень,
+   ESP32 heartbeat -> таблиця device_state, виручка -> view над sessions.
+===================================================================== */
+
+const TARIFFS=[
+  {id:'night',name:'Ніч', label:'00:00 – 07:00', rate:60},
+  {id:'day',  name:'День',label:'07:00 – 18:00', rate:80},
+  {id:'prime',name:'Прайм',label:'18:00 – 24:00',rate:120},
+];
+
+// ---- ДОСТУП ВЛАСНИКА ----
+// Логін/пароль перевіряються на сервері (/api/admin/login, env ADMIN_EMAIL/ADMIN_PASSWORD).
+// Демо-доступ нижче працює лише коли бекенд недоступний (локальний прев'ю).
+const DEMO_EMAIL='owner@tempo.ua';
+const DEMO_PASS ='tempo2026';
+
+// ---- Інтеграції: опис полів. Значення приходять із /api/admin/settings ----
+const INTG=[
+  { id:'turbosms', name:'TurboSMS', badge:'SMS-коди клієнтам', led:'on',
+    fields:[ {k:'turbosms_token', label:'API-токен (Bearer)', secret:true},
+             {k:'turbosms_sender', label:'Sender / Alpha-name'} ], test:true },
+  { id:'monobank', name:'Monobank Acquiring', badge:'оплата · hold/capture', led:'off',
+    fields:[ {k:'monobank_token', label:'X-Token', secret:true} ], test:false },
+  { id:'esp32', name:'ESP32 контролер', badge:'замок дверей', led:'on',
+    fields:[ {k:'esp32_url', label:'Базовий URL (Tailscale)'} ], test:true },
+];
+let adminToken=null, curSettings={};
+const store={
+  get(k){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return (this._m||{})[k]||null;} },
+  set(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){(this._m=this._m||{})[k]=v;} },
+  del(k){ try{localStorage.removeItem(k);}catch(e){ if(this._m) delete this._m[k]; } },
+};
+
+// ---- MOCK дані (заміни на Supabase select/realtime) ----
+const data={
+  gymBusy:true,
+  live:{ client:'Андрій К.', startedAt:Date.now()-1000*60*37, rate:120, tariff:'Прайм' },
+  kpis:[
+    {k:'Виручка сьогодні', v:'₴1 840', sub:'14 сесій', d:'+12% до сер.'},
+    {k:'Цей тиждень', v:'₴11 260', sub:'78 сесій', d:'+6%'},
+    {k:'Завантаження', v:'41%', sub:'год прайму', d:'ціль 60%'},
+    {k:'Сер. чек', v:'₴131', sub:'за сесію', d:'58 хв'},
+  ],
+  sessions:[
+    {time:'19:23', client:'Андрій К.', dur:'активна', sum:'…', live:true},
+    {time:'18:05', client:'Марія Д.', dur:'01:12', sum:'₴144'},
+    {time:'16:40', client:'Тренер · Ігор', dur:'00:55', sum:'₴73'},
+    {time:'12:18', client:'Олег В.', dur:'00:47', sum:'₴63'},
+    {time:'08:02', client:'Тренер · Ігор', dur:'01:30', sum:'₴120'},
+  ],
+  hw:[
+    {n:'Вхідний замок', sub:'реле 1', s:'відчинено', led:'warn'},
+    {n:'Двері (геркон)', sub:'GPIO 4', s:'зачинені', led:'on'},
+    {n:'Датчик руху', sub:'PIR · GPIO 5', s:'є рух', led:'on'},
+    {n:'Тривога / SOS', sub:'кнопка', s:'норма', led:'on'},
+  ],
+  alerts:[
+    {crit:false, ic:'✓', t:'Сесію закрито автоматично', s:'Олег В. · вихід + 10 хв без руху · 12:18'},
+    {crit:false, ic:'₴', t:'Capture виконано', s:'Марія Д. · ₴144 списано · 18:05'},
+    {crit:true,  ic:'!', t:'Рух у залі без активної брони', s:'09 чер 23:14 · перевір запис камери'},
+  ],
+};
+
+const $=s=>document.querySelector(s);
+const pad=n=>String(n).padStart(2,'0');
+const fmtHMS=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${pad(h)}:${pad(m)}:${pad(s)}`};
+function toast(m){const t=$('#toast');t.textContent=m;t.className='toast show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2400)}
+
+function renderHead(){
+  const busy=data.gymBusy;
+  $('#gymLed').className='led '+(busy?'warn':'on');
+  $('#gymState').textContent=busy?'Зал зайнятий':'Зал вільний';
+}
+function renderKpis(){
+  $('#kpis').innerHTML=data.kpis.map(x=>`
+    <div class="kpi"><span>${x.k}</span><b>${x.v}</b><i>${x.sub}</i><span class="delta">${x.d}</span></div>`).join('');
+}
+function renderHw(){
+  $('#hw').innerHTML=data.hw.map(h=>`
+    <div class="hwitem"><div class="n">${h.n}<span>${h.sub}</span></div>
+    <div class="s"><span class="led ${h.led}"></span>${h.s}</div></div>`).join('');
+}
+function renderAlerts(){
+  $('#alerts').innerHTML=data.alerts.map(a=>`
+    <div class="alert ${a.crit?'crit':''}"><div class="ic">${a.ic}</div>
+    <div class="t">${a.t}<span>${a.s}</span></div></div>`).join('');
+}
+function renderTariffs(){
+  $('#tarBox').innerHTML=TARIFFS.map(t=>`
+    <div class="tarrow"><div class="nm">${t.name}<span>${t.label}</span></div>
+    <input value="${t.rate}" inputmode="numeric"><div class="u">₴/год</div></div>`).join('');
+}
+function renderSessions(){
+  $('#sessRows').innerHTML=data.sessions.map(s=>`
+    <tr><td class="mono">${s.time}</td><td>${s.client}</td>
+    <td class="mono ${s.live?'tagok':''}">${s.dur}</td>
+    <td class="mono r">${s.sum}</td></tr>`).join('');
+}
+function renderLive(){
+  const el=$('#liveBlock');
+  if(!data.live){ el.innerHTML='<div class="idlebox">Зал вільний. Чекаємо на наступну сесію.</div>'; return; }
+  const L=data.live;
+  el.innerHTML=`
+    <div class="livewrap">
+      <div>
+        <div class="clock" id="liveClock">00:00:00</div>
+        <div class="livecost">₴<b id="liveCost">0.00</b></div>
+      </div>
+      <div class="live-meta">
+        <span class="chip">Клієнт <b>${L.client}</b></span>
+        <span class="chip">Тариф <b>${L.tariff} · ${L.rate}₴/год</b></span>
+        <span class="chip">Двері <b>відчинені</b></span>
+      </div>
+    </div>`;
+  tickLive();
+}
+let liveTimer=null;
+function tickLive(){
+  clearInterval(liveTimer);
+  const L=data.live;
+  const upd=()=>{
+    const sec=(Date.now()-L.startedAt)/1000;
+    const c=document.getElementById('liveClock'); if(!c)return clearInterval(liveTimer);
+    c.textContent=fmtHMS(sec);
+    document.getElementById('liveCost').textContent=((L.rate/3600)*sec).toFixed(2);
+  };
+  upd(); liveTimer=setInterval(upd,1000);
+}
+function tickHeartbeat(){
+  let s=0; setInterval(()=>{ s++; $('#hb').textContent = s<2?'щойно':`${s} с тому`; if(s>=2&&s<3){} }, 1000);
+  setInterval(()=>{ $('#hb').textContent='щойно'; }, 5000); // імітація heartbeat кожні 5с
+}
+
+function renderIntg(){
+  $('#intg').innerHTML=INTG.map(s=>`
+    <div class="row">
+      <div class="rh">
+        <div class="nm"><span class="led ${s.led}"></span>${s.name}</div>
+        <div class="badge">${s.badge}</div>
+      </div>
+      ${s.fields.map(f=>{
+        const cur=curSettings[f.k];
+        const isSet = f.secret ? !!(cur && cur.set) : !!cur;
+        const val = f.secret ? '' : (cur||'');
+        const ph = f.secret ? (isSet?'•••• збережено · введіть новий, щоб змінити':'— не задано —') : '— не задано —';
+        return `<div class="if"><label>${f.label}${f.secret&&isSet?' <span style="color:var(--ok)">●</span>':''}</label>
+          <input data-s="${s.id}" data-k="${f.k}" type="${f.secret?'password':'text'}" value="${val}" placeholder="${ph}"></div>`;
+      }).join('')}
+      <div class="acts">
+        <button class="btn pri" data-save="${s.id}">Зберегти</button>
+        ${s.test?`<button class="btn" data-test="${s.id}">Тест</button>`:''}
+      </div>
+    </div>`).join('');
+  $('#intg').querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>saveRow(b.dataset.save));
+  $('#intg').querySelectorAll('[data-test]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.test;
+    if(id==='turbosms') toast('Збережи токен — і код прийде клієнту при реєстрації');
+    else if(id==='esp32') toast('Перевірка ESP32 — у наступному кроці');
+    else toast('Тест виконано');
+  });
+}
+
+async function loadSettings(){
+  if(adminToken==='demo'){
+    curSettings={ turbosms_token:{set:true}, turbosms_sender:'CREAGYM', monobank_token:{set:false}, esp32_url:'http://100.x.x.x' };
+    renderIntg(); return;
+  }
+  try{
+    const r=await fetch('/api/admin/settings',{headers:{Authorization:'Bearer '+adminToken}});
+    if(r.status===401){ adminToken=null; store.del('tempo_admin'); dashStarted=false;
+      $('#dash').classList.add('hidden'); $('#login').classList.remove('hidden'); return; }
+    if(!r.ok) throw new Error(r.status);
+    curSettings=await r.json(); renderIntg();
+  }catch(e){ curSettings={}; renderIntg(); toast('Не вдалося завантажити налаштування',true); }
+}
+
+async function saveRow(id){
+  const meta=INTG.find(x=>x.id===id);
+  const body={};
+  meta.fields.forEach(f=>{
+    const inp=document.querySelector(`#intg input[data-k="${f.k}"]`);
+    const v=(inp.value||'').trim();
+    if(f.secret){ if(v) body[f.k]=v; }   // порожнє секретне поле = не чіпати збережений токен
+    else body[f.k]=v;
+  });
+  if(adminToken==='demo'){ toast(meta.name+': збережено (демо)'); return; }
+  try{
+    const r=await fetch('/api/admin/settings',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
+      body:JSON.stringify(body)});
+    if(!r.ok) throw new Error(r.status);
+    toast(meta.name+': збережено'); loadSettings();
+  }catch(e){ toast('Помилка збереження',true); }
+}
+
+$('#saveBtn').onclick=()=>toast('Налаштування збережено');
+$('#admLogout').onclick=()=>{ adminToken=null; store.del('tempo_admin'); $('#dash').classList.add('hidden'); $('#login').classList.remove('hidden'); $('#admPass').value=''; };
+
+/* ---- Login gate (без реєстрації) ---- */
+async function tryLogin(){
+  const email=$('#admEmail').value.trim(), pass=$('#admPass').value;
+  $('#admErr').textContent='';
+  try{
+    const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password:pass})});
+    if(r.status===401){ $('#admErr').textContent='Невірна пошта або пароль.'; return; }
+    if(!r.ok) throw new Error(r.status);
+    const d=await r.json(); adminToken=d.token; store.set('tempo_admin', adminToken);
+    enterDash();
+  }catch(err){
+    // прев'ю без бекенда — демо-доступ
+    if(email.toLowerCase()===DEMO_EMAIL && pass===DEMO_PASS){ adminToken='demo'; enterDash(); }
+    else $('#admErr').textContent='Бекенд недоступний. Демо: '+DEMO_EMAIL+' / '+DEMO_PASS;
+  }
+}
+function enterDash(){ $('#login').classList.add('hidden'); $('#dash').classList.remove('hidden'); initDash(); }
+$('#admEnter').onclick=tryLogin;
+$('#admPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
+
+let dashStarted=false;
+function initDash(){
+  if(dashStarted) return; dashStarted=true;
+  renderHead(); renderKpis(); renderHw(); renderAlerts(); renderTariffs(); renderSessions(); renderLive(); tickHeartbeat();
+  loadSettings();
+}
+
+// автологін, якщо токен уже збережено
+(function bootAdmin(){
+  const t=store.get('tempo_admin');
+  if(t){ adminToken=t; enterDash(); }
+})();
+</script>
+</body>
+</html>
