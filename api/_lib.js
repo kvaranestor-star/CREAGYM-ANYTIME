@@ -78,4 +78,19 @@ function normalizePhone(x) {
   return null;
 }
 
-module.exports = { dbSelect, dbInsert, dbUpdate, dbUpsert, getSetting, requireAdmin, sha256, normalizePhone };
+// перевірка токена клієнта → повертає client_id або null
+async function requireClient(req) {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : (req.headers['x-session-token'] || '');
+  if (!token) return null;
+  try {
+    const rows = await dbSelect('app_sessions', `token=eq.${token}&limit=1`);
+    const s = rows[0];
+    if (!s || new Date(s.expires_at) < new Date()) return null;
+    return s.client_id;
+  } catch (e) {
+    return null;
+  }
+}
+
+module.exports = { dbSelect, dbInsert, dbUpdate, dbUpsert, getSetting, requireAdmin, requireClient, sha256, normalizePhone };
