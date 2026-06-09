@@ -122,6 +122,23 @@
   .resend a{color:var(--text);cursor:pointer;border-bottom:1px dotted var(--faint)}
   .demohint{font-size:11px;color:var(--faint);text-align:center;margin-top:10px}
   .hidden{display:none !important}
+  /* account card */
+  .acct-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+  .acct-name{font-family:var(--disp);font-size:21px;font-weight:700;letter-spacing:-.4px}
+  .acct-phone{font-size:13px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+  .acct-av{width:46px;height:46px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;font-family:var(--disp);font-weight:700;font-size:18px;flex:none}
+  .pay{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+  .pay .pl{display:flex;align-items:center;gap:11px;font-size:14px}
+  .pay .picon{width:34px;height:24px;border-radius:5px;background:linear-gradient(135deg,#2A2F38,#1C2027);border:1px solid var(--line);flex:none}
+  .pay .pl span{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+  .pay .act{font-size:13px;color:var(--go);cursor:pointer;font-weight:600;white-space:nowrap}
+  .pay.empty .picon{background:repeating-linear-gradient(45deg,#1C2027,#1C2027 6px,#15181d 6px,#15181d 12px)}
+  /* bottom sheet */
+  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+  .sheet{background:var(--surface);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:10px 22px max(26px,env(safe-area-inset-bottom));width:100%;max-width:440px;animation:rise .25s ease}
+  @keyframes rise{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .sheet-grip{width:40px;height:4px;border-radius:4px;background:var(--line);margin:6px auto 18px}
+  .sheet-close{appearance:none;border:0;background:transparent;color:var(--muted);font-family:var(--body);font-size:14px;width:100%;padding:14px;cursor:pointer;margin-top:4px}
 </style>
 </head>
 <body>
@@ -181,22 +198,22 @@
     </div>
   </section>
 
-  <!-- ====== SCREEN: ATTACH CARD ====== -->
-  <section id="screenAttach" class="hidden">
-    <div class="status"><span class="led free"></span><b>Зал вільний</b></div>
-    <div class="card">
-      <p class="eyebrow">Перший вхід</p>
-      <h2 style="margin:0 0 8px;font-family:var(--disp);font-size:24px;font-weight:700;letter-spacing:-.5px">Прив'яжіть картку</h2>
-      <p style="margin:0;color:var(--muted);font-size:14px">Гроші не списуються зараз. Перед стартом тренування ми блокуємо депозит, а списуємо тільки за фактичний час — похвилинно. Вихід із залу завжди вільний.</p>
-    </div>
-    <div class="spacer"></div>
-    <button class="go" id="btnAttach">Прив'язати картку</button>
-    <p class="hint">Натискаючи, ви приймаєте <b>умови оренди</b> та згоду на похвилинне списання.</p>
-  </section>
-
-  <!-- ====== SCREEN: HOME (idle) ====== -->
+  <!-- ====== SCREEN: HOME / ACCOUNT ====== -->
   <section id="screenHome" class="hidden">
     <div class="status" id="homeStatus"><span class="led free"></span><b>Зал вільний</b></div>
+
+    <div class="card acct">
+      <div class="acct-top">
+        <div>
+          <p class="eyebrow" style="margin:0 0 6px">Ваш акаунт</p>
+          <div class="acct-name" id="acctName">—</div>
+          <div class="acct-phone" id="acctPhone">—</div>
+        </div>
+        <div class="acct-av" id="acctAv">—</div>
+      </div>
+      <div class="pay" id="payRow"></div>
+    </div>
+
     <div class="card">
       <p class="eyebrow">Тариф зараз</p>
       <div class="tariff">
@@ -244,6 +261,19 @@
 </div>
 
 <button class="sos hidden" id="sosBtn">SOS · виклик допомоги</button>
+
+<!-- ====== MODAL: ATTACH CARD ====== -->
+<div class="sheet-bg hidden" id="cardModal">
+  <div class="sheet">
+    <div class="sheet-grip"></div>
+    <p class="eyebrow">Спосіб оплати</p>
+    <h2 style="margin:0 0 8px;font-family:var(--disp);font-size:23px;font-weight:700;letter-spacing:-.5px">Прив'яжіть картку</h2>
+    <p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55">Гроші зараз не списуються. Перед стартом блокуємо депозит, а списуємо лише за фактичний час — похвилинно. Вихід із залу завжди вільний.</p>
+    <button class="go" id="btnAttach">Прив'язати картку</button>
+    <p class="hint">Натискаючи, ви приймаєте <b>умови оренди</b> та згоду на похвилинне списання.</p>
+    <button class="sheet-close" id="cardClose">Пізніше</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -347,7 +377,7 @@ const api = {
 
 /* ----------------------------- UI ----------------------------------- */
 const $=s=>document.querySelector(s);
-const screens={auth:$('#screenAuth'),attach:$('#screenAttach'),home:$('#screenHome'),live:$('#screenLive')};
+const screens={auth:$('#screenAuth'),home:$('#screenHome'),live:$('#screenLive')};
 let tick=null;
 
 function show(name){
@@ -371,6 +401,21 @@ function renderHeader(){
 
 function renderHome(){
   renderHeader();
+  // account block
+  const u=api.user;
+  $('#acctName').textContent=u.name||'Ви';
+  $('#acctPhone').textContent=u.phone||'';
+  $('#acctAv').textContent=(u.name||'В')[0].toUpperCase();
+  const pay=$('#payRow');
+  if(u.cardLast4){
+    pay.className='pay';
+    pay.innerHTML=`<div class="pl"><div class="picon"></div><div>Картка •••• ${u.cardLast4}<span>Спосіб оплати</span></div></div><a class="act" id="changeCard">Змінити</a>`;
+    $('#changeCard').onclick=openCard;
+  }else{
+    pay.className='pay empty';
+    pay.innerHTML=`<div class="pl"><div class="picon"></div><div>Картку не прив'язано<span>Потрібна для старту</span></div></div><a class="act" id="addCard">Прив'язати</a>`;
+    $('#addCard').onclick=openCard;
+  }
   const t=tariffNow();
   $('#rateNow').innerHTML=`${t.rate}<small> ₴/год</small>`;
   $('#winName').textContent=t.name;
@@ -385,7 +430,9 @@ function renderHome(){
     ? '<span class="led free"></span><b>Зал вільний</b>'
     : '<span class="led busy"></span><b>Зал зайнятий</b>';
   $('#btnStart').disabled=!free;
-  $('#startHint').textContent = free ? 'Двері відчиняться одразу після старту.' : 'Зараз у залі хтось тренується — спробуйте пізніше.';
+  $('#startHint').textContent = free
+    ? (api.user.cardLast4 ? 'Двері відчиняться одразу після старту.' : 'Перед стартом попросимо прив\u0027язати картку.')
+    : 'Зараз у залі хтось тренується — спробуйте пізніше.';
   // history
   const h=api.history;
   $('#histList').innerHTML = h.length ? h.slice(0,4).map(r=>`
@@ -475,28 +522,43 @@ $('#btnVerify').onclick=async e=>{
   clearInterval(resendTimer);
   e.target.disabled=false; e.target.textContent='Підтвердити';
   renderHeader();
-  // після входу: немає картки → привязка, інакше → головна
-  if(!api.user.cardLast4){ show('attach'); }
-  else { renderHome(); show('home'); }
+  renderHome(); show('home');
   toast('Вітаємо, '+api.user.name+'!');
 };
 
 $('#logout').onclick=()=>{ stopTicker&&stopTicker(); api.logout(); setMode('login'); authStep('phone');
   $('#inPhone').value=''; $('#inName').value=''; renderHeader(); show('auth'); };
 
-/* --------------------------- Events --------------------------------- */
+/* --------------------------- Card modal ----------------------------- */
+function openCard(){ $('#cardModal').classList.remove('hidden'); }
+function closeCard(){ $('#cardModal').classList.add('hidden'); }
+let startAfterCard=false;
+
+$('#cardClose').onclick=()=>{ startAfterCard=false; closeCard(); };
+$('#cardModal').onclick=e=>{ if(e.target.id==='cardModal'){ startAfterCard=false; closeCard(); } };
+
 $('#btnAttach').onclick=async e=>{
   e.target.disabled=true; e.target.textContent='Прив\u0027язуємо…';
   await api.attachCard();
-  renderHome(); show('home');
+  e.target.disabled=false; e.target.textContent='Прив\u0027язати картку';
+  closeCard(); renderHome();
   toast('Картка прив\u0027язана · списань зараз немає');
+  if(startAfterCard){ startAfterCard=false; doStart(); }
 };
-$('#btnStart').onclick=async e=>{
-  e.target.disabled=true; e.target.textContent='Відчиняємо двері…';
+
+/* --------------------------- Events --------------------------------- */
+async function doStart(){
+  const b=$('#btnStart');
+  b.disabled=true; b.textContent='Відчиняємо двері…';
   await api.startSession();
-  e.target.textContent='Почати тренування';
+  b.textContent='Почати тренування'; b.disabled=false;
   startTicker(); show('live');
   toast(`Депозит-блок ₴${HOLD} · двері відчинені`);
+}
+$('#btnStart').onclick=()=>{
+  if(api.gym.status!=='free'){ toast('Зал зараз зайнятий',true); return; }
+  if(!api.user.cardLast4){ startAfterCard=true; openCard(); toast('Спочатку прив\u0027яжіть картку'); return; }
+  doStart();
 };
 $('#btnEnd').onclick=async e=>{
   e.target.disabled=true; e.target.textContent='Завершуємо…';
@@ -512,7 +574,6 @@ $('#sosBtn').onclick=async()=>{ await api.sos(); toast('Сигнал надіс�
   setMode('login'); authStep('phone');
   renderHeader();
   if(!api.user.id){ show('auth'); }
-  else if(!api.user.cardLast4){ show('attach'); }
   else { renderHome(); show('home'); }
 })();
 </script>
