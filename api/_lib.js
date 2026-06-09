@@ -69,6 +69,31 @@ async function requireAdmin(req) {
 const crypto = require('crypto');
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+// --- паролі (scrypt, без зовнішніх залежностей) ---
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const dk = crypto.scryptSync(String(pw), salt, 32).toString('hex');
+  return salt + ':' + dk;
+}
+function verifyPassword(pw, stored) {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, dk] = stored.split(':');
+  const test = crypto.scryptSync(String(pw), salt, 32);
+  const a = Buffer.from(dk, 'hex');
+  return a.length === test.length && crypto.timingSafeEqual(a, test);
+}
+
+// видати клієнту токен сесії (зберігається в браузері)
+async function issueClientSession(clientId, ttlDays = 90) {
+  const token = crypto.randomBytes(32).toString('hex');
+  await dbInsert('app_sessions', {
+    token,
+    client_id: clientId,
+    expires_at: new Date(Date.now() + ttlDays * 86400000).toISOString(),
+  }, 'return=minimal');
+  return token;
+}
+
 // +380XXXXXXXXX → нормалізований 12-значний рядок або null
 function normalizePhone(x) {
   const d = String(x || '').replace(/\D/g, '');
@@ -93,4 +118,18 @@ async function requireClient(req) {
   }
 }
 
-module.exports = { dbSelect, dbInsert, dbUpdate, dbUpsert, getSetting, requireAdmin, requireClient, sha256, normalizePhone };
+// --- Monobank Acquiring API ---
+async function mono(path, { method = 'POST', body = null } = {}) {
+  const token = (await getSetting('monobank_token')) || process.env.MONOBANK_TOKEN;
+  if (!token) throw new Error('monobank_not_configured');
+  const r = await fetch('https://api.monobank.ua/api/merchant' + path, {
+    method,
+    headers: { 'X-Token': token, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error('mono ' + path + ' ' + r.status); e.status = r.status; e.body = j; throw e; }
+  return j;
+}
+
+module.exports = { dbSelect, dbInsert, dbUpdate, dbUpsert, getSetting, requireAdmin, requireClient, issueClientSession, hashPassword, verifyPassword, mono, sha256, normalizePhone };
