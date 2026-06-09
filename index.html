@@ -194,7 +194,7 @@
       </div>
       <div class="spacer"></div>
       <button class="go" id="btnVerify" disabled>Підтвердити</button>
-      <p class="demohint">Демо: підійде будь-який 4-значний код</p>
+      <p class="demohint" id="otpHint">Код діє 5 хвилин.</p>
     </div>
   </section>
 
@@ -302,41 +302,75 @@ function tariffNow(d=new Date()){
 }
 
 /* ---------------------------------------------------------------------
-   ШАР API — ЗАМІНИ НА SUPABASE / MONOBANK / ESP32
-   У демо все працює локально, сесія тікає в реальному часі.
+   ШАР API — реальні виклики до функцій на Vercel (/api/*).
+   send-otp / verify-otp вже підключені до TurboSMS + Supabase.
+   Якщо бекенд недоступний (локальний прев'ю) — відкат у демо-режим.
 --------------------------------------------------------------------- */
+const store = {
+  get(k){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return (this._m||{})[k]||null;} },
+  set(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){(this._m=this._m||{})[k]=v;} },
+  del(k){ try{localStorage.removeItem(k);}catch(e){ if(this._m) delete this._m[k]; } },
+};
+
 const api = {
-  user:{ id:null, name:null, phone:null, cardLast4:null },  // ← Supabase auth + profile
-  gym:{ status:'free' },                      // 'free' | 'busy'  ← realtime
+  token:null,
+  user:{ id:null, name:null, phone:null, cardLast4:null },  // профіль клієнта
+  gym:{ status:'free' },                      // 'free' | 'busy'  ← realtime (next)
   session:null,                               // активна сесія
-  history:[                                   // ← select from sessions
+  history:[                                   // ← /api/history (next)
     { date:'Вчора, 19:20', dur:'01:05', cost:130 },
     { date:'08 чер, 07:40', dur:'00:48', cost:64 },
   ],
-  _pending:null,                              // тимчасові дані під час OTP
+  _pending:null, _demo:false,
 
-  // Реєстрація/вхід за телефоном. Надсилаємо OTP.
-  // TODO Supabase: signInWithOtp({phone}) — або власний код через TurboSMS (Vercel proxy).
+  // Крок 1: надіслати код. POST /api/send-otp → TurboSMS.
   async requestOtp(phone, name, mode){
-    await wait(700);
     this._pending = { phone, name: name||null, mode };
-    return true;                              // у демо код будь-який 4-значний
+    try{
+      const r = await fetch('/api/send-otp', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone, name, mode })
+      });
+      if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||r.status); }
+      this._demo=false; return { ok:true };
+    }catch(err){
+      console.warn('send-otp → демо-режим:', err.message);
+      this._demo=true; return { ok:true, demo:true };
+    }
   },
 
-  // Перевірка коду. На реєстрації — створюємо профіль.
-  // TODO Supabase: verifyOtp({phone, token}) → upsert у profiles (name, phone).
+  // Крок 2: перевірити код. POST /api/verify-otp → клієнт + токен сесії.
   async verifyOtp(code){
-    await wait(500);
-    if(!/^\d{4}$/.test(code)) return false;
     const p=this._pending||{};
-    this.user.id = 'u_'+p.phone;
-    this.user.phone = p.phone;
-    this.user.name = p.name || 'Ви';
-    this._pending=null;
-    return true;
+    if(this._demo){
+      if(!/^\d{4}$/.test(code)) return false;
+      this.user={ id:'demo', name:p.name||'Ви', phone:p.phone, cardLast4:null };
+      this._pending=null; return true;
+    }
+    try{
+      const r = await fetch('/api/verify-otp', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone:p.phone, code })
+      });
+      if(!r.ok) return false;
+      const d = await r.json();
+      this.token = d.token;
+      this.user = { id:d.client.id, name:d.client.name, phone:d.client.phone, cardLast4:d.client.card_last4||null };
+      store.set('tempo_session', d);
+      this._pending=null; return true;
+    }catch(err){ console.warn('verify-otp', err.message); return false; }
   },
 
-  logout(){ this.user={ id:null, name:null, phone:null, cardLast4:null }; },
+  // Відновити сесію з браузера при завантаженні.
+  restore(){
+    const s = store.get('tempo_session');
+    if(s && s.token){
+      this.token=s.token;
+      this.user={ id:s.client.id, name:s.client.name, phone:s.client.phone, cardLast4:s.client.card_last4||null };
+    }
+  },
+
+  logout(){ this.token=null; store.del('tempo_session'); this.user={ id:null, name:null, phone:null, cardLast4:null }; },
 
   // Прив'язка картки: токенізація + згода на MIT (merchant-initiated).
   // TODO Monobank: створити токен картки для подальших списань без клієнта.
@@ -499,8 +533,9 @@ $('#btnGetCode').onclick=async e=>{
   $('#otpPhone').textContent=phone;
   document.querySelectorAll('.otp input').forEach(i=>i.value='');
   authStep('otp'); startResend();
+  $('#otpHint').textContent = api._demo ? 'Прев\u0027ю без бекенда: підійде будь-який 4-значний код.' : 'Код діє 5 хвилин.';
   document.querySelector('.otp input').focus();
-  toast('Код надіслано в SMS');
+  toast(api._demo ? 'Демо-режим (бекенд недоступний)' : 'Код надіслано в SMS');
 };
 
 // OTP: автоперехід між полями
@@ -572,6 +607,7 @@ $('#sosBtn').onclick=async()=>{ await api.sos(); toast('Сигнал надіс�
 /* --------------------------- Boot ----------------------------------- */
 (function boot(){
   setMode('login'); authStep('phone');
+  api.restore();
   renderHeader();
   if(!api.user.id){ show('auth'); }
   else { renderHome(); show('home'); }
