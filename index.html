@@ -121,6 +121,15 @@
   .resend{display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:13px;color:var(--muted)}
   .resend a{color:var(--text);cursor:pointer;border-bottom:1px dotted var(--faint)}
   .demohint{font-size:11px;color:var(--faint);text-align:center;margin-top:10px}
+  .linklike{display:inline-block;margin-top:2px;color:var(--muted);font-size:13px;cursor:pointer;border-bottom:1px dotted var(--faint)}
+  .auth-err{color:var(--danger);font-size:13px;margin:10px 0 0;min-height:16px}
+  /* card form */
+  .cardform .field{margin-bottom:11px}
+  .cardform label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin:0 0 7px}
+  .cardform input{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:14px;font-size:16px;font-family:var(--mono);letter-spacing:1px}
+  .cardform input:focus{outline:none;border-color:var(--go)}
+  .cardform .two{display:flex;gap:10px}
+  .cardform .two .field{flex:1}
   .hidden{display:none !important}
   /* account card */
   .acct-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -149,48 +158,70 @@
     <div class="who"><span id="whoName">Гість</span><span class="av" id="whoAv">Г</span></div>
   </div>
 
-  <!-- ====== SCREEN: AUTH (login / register) ====== -->
+  <!-- ====== SCREEN: AUTH ====== -->
   <section id="screenAuth" class="hidden">
     <div class="status"><span class="led free"></span><b>Зал у вашому ЖК</b></div>
 
-    <!-- step 1: phone -->
-    <div id="authPhone">
-      <div class="authhead">
-        <h2 id="authTitle">Вхід у tempo</h2>
-        <p id="authSub">Увійдіть за номером телефону — надішлемо код.</p>
-      </div>
-      <div class="tabs">
-        <button id="tabLogin" class="active" type="button">Вхід</button>
-        <button id="tabReg" type="button">Реєстрація</button>
-      </div>
-      <div class="field" id="nameField" style="display:none">
-        <label>Ім'я</label>
-        <input id="inName" type="text" placeholder="Як вас звати" autocomplete="given-name">
-      </div>
-      <div class="field">
-        <label>Телефон</label>
-        <input id="inPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel">
-      </div>
+    <div class="tabs" id="authTabs">
+      <button id="tabLogin" class="active" type="button">Вхід</button>
+      <button id="tabReg" type="button">Реєстрація</button>
+    </div>
+
+    <!-- LOGIN: телефон + пароль, без SMS -->
+    <div id="viewLogin">
+      <div class="authhead"><h2>Вхід</h2></div>
+      <div class="field"><label>Телефон</label>
+        <input id="logPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel"></div>
+      <div class="field"><label>Пароль</label>
+        <input id="logPass" type="password" placeholder="Ваш пароль" autocomplete="current-password"></div>
+      <a class="linklike" id="forgotLink">Забули пароль?</a>
       <div class="spacer"></div>
-      <button class="go" id="btnGetCode">Отримати код</button>
+      <button class="go" id="btnLogin">Увійти</button>
+    </div>
+
+    <!-- REGISTER: ім'я + телефон + пароль + повтор -->
+    <div id="viewReg" class="hidden">
+      <div class="authhead"><h2>Реєстрація</h2><p>Підтвердимо номер кодом із SMS один раз.</p></div>
+      <div class="field"><label>Ім'я</label>
+        <input id="regName" type="text" placeholder="Як вас звати" autocomplete="given-name"></div>
+      <div class="field"><label>Телефон</label>
+        <input id="regPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel"></div>
+      <div class="field"><label>Пароль</label>
+        <input id="regPass" type="password" placeholder="Мінімум 6 символів" autocomplete="new-password"></div>
+      <div class="field"><label>Повторіть пароль</label>
+        <input id="regPass2" type="password" placeholder="Ще раз" autocomplete="new-password"></div>
+      <div class="spacer"></div>
+      <button class="go" id="btnReg">Отримати код</button>
       <p class="hint">Продовжуючи, ви приймаєте <b>умови оренди</b> та політику конфіденційності.</p>
     </div>
 
-    <!-- step 2: otp -->
-    <div id="authOtp" class="hidden">
-      <div class="authhead">
-        <h2>Введіть код</h2>
-        <p>Надіслали SMS на <b id="otpPhone" style="color:var(--text)"></b></p>
-      </div>
+    <!-- FORGOT: телефон → код → новий пароль -->
+    <div id="viewForgot" class="hidden">
+      <div class="authhead"><h2>Відновлення пароля</h2><p>Надішлемо код на ваш номер.</p></div>
+      <div class="field"><label>Телефон</label>
+        <input id="fgPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel"></div>
+      <a class="linklike" id="backToLogin">← Назад до входу</a>
+      <div class="spacer"></div>
+      <button class="go" id="btnForgot">Надіслати код</button>
+    </div>
+
+    <!-- OTP: спільний крок коду (для реєстрації та відновлення) -->
+    <div id="viewOtp" class="hidden">
+      <div class="authhead"><h2>Введіть код</h2><p>Надіслали SMS на <b id="otpPhone" style="color:var(--text)"></b></p></div>
       <div class="otp">
-        <input maxlength="1" inputmode="numeric" data-i="0">
-        <input maxlength="1" inputmode="numeric" data-i="1">
-        <input maxlength="1" inputmode="numeric" data-i="2">
-        <input maxlength="1" inputmode="numeric" data-i="3">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+      </div>
+      <!-- новий пароль — лише у сценарії відновлення -->
+      <div id="otpNewPass" class="hidden">
+        <div class="field" style="margin-top:14px"><label>Новий пароль</label>
+          <input id="rsPass" type="password" placeholder="Мінімум 6 символів" autocomplete="new-password"></div>
+        <div class="field"><label>Повторіть пароль</label>
+          <input id="rsPass2" type="password" placeholder="Ще раз" autocomplete="new-password"></div>
       </div>
       <div class="resend">
-        <a id="changeNum">← Змінити номер</a>
-        <span id="resendBox">Новий код через <b id="resendT">30</b> с</span>
+        <a id="otpBack">← Назад</a>
+        <span id="resendBox">Новий код через <b id="resendT">60</b> с</span>
       </div>
       <div class="spacer"></div>
       <button class="go" id="btnVerify" disabled>Підтвердити</button>
@@ -268,9 +299,20 @@
     <div class="sheet-grip"></div>
     <p class="eyebrow">Спосіб оплати</p>
     <h2 style="margin:0 0 8px;font-family:var(--disp);font-size:23px;font-weight:700;letter-spacing:-.5px">Прив'яжіть картку</h2>
-    <p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55">Гроші зараз не списуються. Перед стартом блокуємо депозит, а списуємо лише за фактичний час — похвилинно. Вихід із залу завжди вільний.</p>
+    <p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55">Гроші зараз не списуються. Перед стартом блокуємо депозит, а списуємо лише за фактичний час — похвилинно.</p>
+    <div class="cardform">
+      <div class="field"><label>Номер картки</label>
+        <input id="ccNum" inputmode="numeric" placeholder="0000 0000 0000 0000" maxlength="23" autocomplete="cc-number"></div>
+      <div class="two">
+        <div class="field"><label>Термін</label>
+          <input id="ccExp" inputmode="numeric" placeholder="MM/YY" maxlength="5" autocomplete="cc-exp"></div>
+        <div class="field"><label>CVV</label>
+          <input id="ccCvv" inputmode="numeric" placeholder="•••" maxlength="4" type="password" autocomplete="cc-csc"></div>
+      </div>
+    </div>
+    <p class="auth-err" id="ccErr"></p>
     <button class="go" id="btnAttach">Прив'язати картку</button>
-    <p class="hint">Натискаючи, ви приймаєте <b>умови оренди</b> та згоду на похвилинне списання.</p>
+    <p class="hint">Дані передаються платіжному провайдеру. Ми зберігаємо лише останні 4 цифри.</p>
     <button class="sheet-close" id="cardClose">Пізніше</button>
   </div>
 </div>
@@ -323,42 +365,65 @@ const api = {
   ],
   _pending:null, _demo:false,
 
-  // Крок 1: надіслати код. POST /api/send-otp → TurboSMS.
-  async requestOtp(phone, name, mode){
-    this._pending = { phone, name: name||null, mode };
+  _setSession(d){
+    this.token=d.token;
+    this.user={ id:d.client.id, name:d.client.name, phone:d.client.phone, cardLast4:d.client.card_last4||null };
+    store.set('tempo_session', d);
+  },
+
+  // РЕЄСТРАЦІЯ крок 1: ім'я+телефон+пароль → SMS-код. Повертає {ok}|{error}.
+  async register(phone, name, password){
+    this._pending = { phone, mode:'register' };
     try{
-      const r = await fetch('/api/send-otp', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ phone, name, mode })
-      });
-      if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||r.status); }
+      const r = await fetch('/api/send-otp', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone, name, password, purpose:'register' }) });
+      if(r.status===409) return { error:'exists' };
+      if(r.status===429){ const e=await r.json().catch(()=>({})); return { error:'cooldown', wait:e.wait }; }
+      if(!r.ok) throw new Error(r.status);
       this._demo=false; return { ok:true };
+    }catch(err){ this._demo=true; return { ok:true, demo:true }; }
+  },
+
+  // ВХІД: телефон+пароль, без SMS.
+  async login(phone, password){
+    try{
+      const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone, password }) });
+      if(r.status===401) return { error:'bad' };
+      if(!r.ok) throw new Error(r.status);
+      this._setSession(await r.json()); return { ok:true };
     }catch(err){
-      console.warn('send-otp → демо-режим:', err.message);
-      this._demo=true; return { ok:true, demo:true };
+      this._demo=true; this.user={ id:'demo', name:'Ви', phone, cardLast4:null }; return { ok:true, demo:true };
     }
   },
 
-  // Крок 2: перевірити код. POST /api/verify-otp → клієнт + токен сесії.
-  async verifyOtp(code){
+  // ВІДНОВЛЕННЯ крок 1: телефон → SMS-код.
+  async forgotStart(phone){
+    this._pending = { phone, mode:'reset' };
+    try{
+      const r = await fetch('/api/send-otp', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone, purpose:'reset' }) });
+      if(r.status===404) return { error:'no_account' };
+      if(r.status===429){ const e=await r.json().catch(()=>({})); return { error:'cooldown', wait:e.wait }; }
+      if(!r.ok) throw new Error(r.status);
+      this._demo=false; return { ok:true };
+    }catch(err){ this._demo=true; return { ok:true, demo:true }; }
+  },
+
+  // Крок 2 (спільний): перевірити код. password — лише для відновлення.
+  async verifyCode(code, password){
     const p=this._pending||{};
     if(this._demo){
-      if(!/^\d{4}$/.test(code)) return false;
-      this.user={ id:'demo', name:p.name||'Ви', phone:p.phone, cardLast4:null };
-      this._pending=null; return true;
+      if(!/^\d{4}$/.test(code)) return { error:'wrong' };
+      this.user={ id:'demo', name:'Ви', phone:p.phone, cardLast4:null }; this._pending=null; return { ok:true };
     }
     try{
-      const r = await fetch('/api/verify-otp', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ phone:p.phone, code })
-      });
-      if(!r.ok) return false;
-      const d = await r.json();
-      this.token = d.token;
-      this.user = { id:d.client.id, name:d.client.name, phone:d.client.phone, cardLast4:d.client.card_last4||null };
-      store.set('tempo_session', d);
-      this._pending=null; return true;
-    }catch(err){ console.warn('verify-otp', err.message); return false; }
+      const r = await fetch('/api/verify-otp', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ phone:p.phone, code, password }) });
+      if(r.status===400) return { error:'wrong' };
+      if(!r.ok) throw new Error(r.status);
+      this._setSession(await r.json()); this._pending=null; return { ok:true };
+    }catch(err){ return { error:'server' }; }
   },
 
   // Відновити сесію з браузера при завантаженні.
@@ -373,14 +438,14 @@ const api = {
   logout(){ this.token=null; store.del('tempo_session'); this.user={ id:null, name:null, phone:null, cardLast4:null }; },
 
   // Прив'язка картки — лише для самого клієнта (за його токеном).
-  // TODO Monobank: токенізація + згода на MIT. Поки що — демонстраційний last4.
-  async attachCard(){
-    if(this._demo || !this.token){ this.user.cardLast4='4242'; return true; } // прев'ю/демо
+  // Передаємо ЛИШЕ останні 4 цифри. Повний номер/CVV нікуди не надсилаються.
+  async attachCard(last4){
+    if(this._demo || !this.token){ this.user.cardLast4=last4||'4242'; return true; } // прев'ю/демо
     try{
       const r = await fetch('/api/attach-card', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token },
-        body: JSON.stringify({})
+        body: JSON.stringify({ card_last4: last4 })
       });
       if(!r.ok) throw new Error(r.status);
       const d = await r.json();
@@ -499,52 +564,91 @@ function startTicker(){
 function stopTicker(){clearInterval(tick);tick=null}
 
 /* --------------------------- Auth ----------------------------------- */
-let authMode='login';   // 'login' | 'register'
-let resendTimer=null;
+let resendTimer=null, otpMode='register'; // 'register' | 'reset'
 
-function setMode(m){
-  authMode=m;
-  $('#tabLogin').classList.toggle('active', m==='login');
-  $('#tabReg').classList.toggle('active', m==='register');
-  $('#nameField').style.display = m==='register' ? 'block' : 'none';
-  $('#authTitle').textContent = m==='register' ? 'Реєстрація' : 'Вхід у tempo';
-  $('#authSub').textContent = m==='register'
-    ? 'Створіть акаунт — надішлемо код на телефон.'
-    : 'Увійдіть за номером телефону — надішлемо код.';
-}
-function authStep(step){
-  $('#authPhone').classList.toggle('hidden', step!=='phone');
-  $('#authOtp').classList.toggle('hidden', step!=='otp');
+function authView(v){
+  ['Login','Reg','Forgot','Otp'].forEach(x=> $('#view'+x).classList.add('hidden'));
+  $('#view'+v).classList.remove('hidden');
+  const showTabs = (v==='Login'||v==='Reg');
+  $('#authTabs').style.display = showTabs ? 'flex' : 'none';
+  if(v==='Login') $('#tabLogin').classList.add('active'), $('#tabReg').classList.remove('active');
+  if(v==='Reg') $('#tabReg').classList.add('active'), $('#tabLogin').classList.remove('active');
 }
 function startResend(){
-  let s=30; $('#resendT').textContent=s; $('#resendBox').innerHTML='Новий код через <b id="resendT">'+s+'</b> с';
+  let s=60; $('#resendBox').innerHTML='Новий код через <b id="resendT">'+s+'</b> с';
   clearInterval(resendTimer);
   resendTimer=setInterval(()=>{
     s--;
     if(s<=0){ clearInterval(resendTimer); $('#resendBox').innerHTML='<a id="reSend">Надіслати код ще раз</a>';
-      $('#reSend').onclick=()=>{ toast('Код надіслано ще раз'); startResend(); }; }
+      $('#reSend').onclick=resendCode; }
     else { const el=$('#resendT'); if(el) el.textContent=s; }
   },1000);
 }
+async function resendCode(){
+  const p=api._pending||{};
+  const r = otpMode==='reset' ? await api.forgotStart(p.phone)
+                              : await api.register(p.phone, regCache.name, regCache.password);
+  if(r.error==='cooldown'){ toast(`Зачекайте ${r.wait||60} с`,true); return; }
+  toast('Код надіслано ще раз'); startResend();
+}
 function otpValue(){ return [...document.querySelectorAll('.otp input')].map(i=>i.value).join(''); }
-
-$('#tabLogin').onclick=()=>setMode('login');
-$('#tabReg').onclick=()=>setMode('register');
-
-$('#btnGetCode').onclick=async e=>{
-  const phone=$('#inPhone').value.trim();
-  const name=$('#inName').value.trim();
-  if(phone.replace(/\D/g,'').length<9){ toast('Введіть номер телефону',true); return; }
-  if(authMode==='register' && !name){ toast('Вкажіть ім\u0027я',true); return; }
-  e.target.disabled=true; e.target.textContent='Надсилаємо код…';
-  await api.requestOtp(phone, name, authMode);
-  e.target.disabled=false; e.target.textContent='Отримати код';
+function goToOtp(phone, mode){
+  otpMode=mode;
   $('#otpPhone').textContent=phone;
+  $('#otpNewPass').classList.toggle('hidden', mode!=='reset');
   document.querySelectorAll('.otp input').forEach(i=>i.value='');
-  authStep('otp'); startResend();
-  $('#otpHint').textContent = api._demo ? 'Прев\u0027ю без бекенда: підійде будь-який 4-значний код.' : 'Код діє 5 хвилин.';
+  $('#btnVerify').disabled=true;
+  $('#otpHint').textContent = api._demo ? 'Прев\u0027ю без бекенда: будь-який 4-значний код.' : 'Код діє 5 хвилин.';
+  authView('Otp'); startResend();
   document.querySelector('.otp input').focus();
   toast(api._demo ? 'Демо-режим (бекенд недоступний)' : 'Код надіслано в SMS');
+}
+let regCache={name:'',password:''};
+
+$('#tabLogin').onclick=()=>authView('Login');
+$('#tabReg').onclick=()=>authView('Reg');
+$('#forgotLink').onclick=()=>{ $('#fgPhone').value=$('#logPhone').value; authView('Forgot'); };
+$('#backToLogin').onclick=()=>authView('Login');
+$('#otpBack').onclick=()=>{ clearInterval(resendTimer); authView(otpMode==='reset'?'Forgot':'Reg'); };
+
+// ВХІД (без SMS)
+$('#btnLogin').onclick=async e=>{
+  const phone=$('#logPhone').value.trim(), pass=$('#logPass').value;
+  if(phone.replace(/\D/g,'').length<9 || !pass){ toast('Введіть телефон і пароль',true); return; }
+  e.target.disabled=true; e.target.textContent='Входимо…';
+  const r=await api.login(phone, pass);
+  e.target.disabled=false; e.target.textContent='Увійти';
+  if(r.error==='bad'){ toast('Невірний телефон або пароль',true); return; }
+  renderHome(); show('home'); toast('Вітаємо, '+api.user.name+'!');
+};
+
+// РЕЄСТРАЦІЯ → SMS
+$('#btnReg').onclick=async e=>{
+  const name=$('#regName').value.trim(), phone=$('#regPhone').value.trim();
+  const p1=$('#regPass').value, p2=$('#regPass2').value;
+  if(!name){ toast('Вкажіть ім\u0027я',true); return; }
+  if(phone.replace(/\D/g,'').length<9){ toast('Введіть номер телефону',true); return; }
+  if(p1.length<6){ toast('Пароль мінімум 6 символів',true); return; }
+  if(p1!==p2){ toast('Паролі не співпадають',true); return; }
+  regCache={name,password:p1};
+  e.target.disabled=true; e.target.textContent='Надсилаємо код…';
+  const r=await api.register(phone, name, p1);
+  e.target.disabled=false; e.target.textContent='Отримати код';
+  if(r.error==='exists'){ toast('Такий номер уже зареєстровано — увійдіть',true); authView('Login'); return; }
+  if(r.error==='cooldown'){ toast(`Зачекайте ${r.wait||60} с перед новим SMS`,true); return; }
+  goToOtp(phone,'register');
+};
+
+// ВІДНОВЛЕННЯ → SMS
+$('#btnForgot').onclick=async e=>{
+  const phone=$('#fgPhone').value.trim();
+  if(phone.replace(/\D/g,'').length<9){ toast('Введіть номер телефону',true); return; }
+  e.target.disabled=true; e.target.textContent='Надсилаємо код…';
+  const r=await api.forgotStart(phone);
+  e.target.disabled=false; e.target.textContent='Надіслати код';
+  if(r.error==='no_account'){ toast('Акаунт із таким номером не знайдено',true); return; }
+  if(r.error==='cooldown'){ toast(`Зачекайте ${r.wait||60} с перед новим SMS`,true); return; }
+  goToOtp(phone,'reset');
 };
 
 // OTP: автоперехід між полями
@@ -557,21 +661,27 @@ document.querySelectorAll('.otp input').forEach((inp,idx,arr)=>{
   inp.addEventListener('keydown',e=>{ if(e.key==='Backspace' && !inp.value && arr[idx-1]) arr[idx-1].focus(); });
 });
 
-$('#changeNum').onclick=()=>{ clearInterval(resendTimer); authStep('phone'); };
-
+// Підтвердження коду
 $('#btnVerify').onclick=async e=>{
+  let newPass=null;
+  if(otpMode==='reset'){
+    const a=$('#rsPass').value, b=$('#rsPass2').value;
+    if(a.length<6){ toast('Пароль мінімум 6 символів',true); return; }
+    if(a!==b){ toast('Паролі не співпадають',true); return; }
+    newPass=a;
+  }
   e.target.disabled=true; e.target.textContent='Перевіряємо…';
-  const ok=await api.verifyOtp(otpValue());
-  if(!ok){ e.target.disabled=false; e.target.textContent='Підтвердити'; toast('Невірний код',true); return; }
-  clearInterval(resendTimer);
+  const r=await api.verifyCode(otpValue(), newPass);
   e.target.disabled=false; e.target.textContent='Підтвердити';
-  renderHeader();
+  if(r.error==='wrong'){ toast('Невірний код',true); return; }
+  if(r.error){ toast('Помилка, спробуйте ще раз',true); return; }
+  clearInterval(resendTimer);
   renderHome(); show('home');
-  toast('Вітаємо, '+api.user.name+'!');
+  toast(otpMode==='reset' ? 'Пароль оновлено' : 'Вітаємо, '+api.user.name+'!');
 };
 
-$('#logout').onclick=()=>{ stopTicker&&stopTicker(); api.logout(); setMode('login'); authStep('phone');
-  $('#inPhone').value=''; $('#inName').value=''; renderHeader(); show('auth'); };
+$('#logout').onclick=()=>{ stopTicker&&stopTicker(); api.logout(); authView('Login');
+  $('#logPhone').value=''; $('#logPass').value=''; renderHeader(); show('auth'); };
 
 /* --------------------------- Card modal ----------------------------- */
 function openCard(){ $('#cardModal').classList.remove('hidden'); }
@@ -581,11 +691,30 @@ let startAfterCard=false;
 $('#cardClose').onclick=()=>{ startAfterCard=false; closeCard(); };
 $('#cardModal').onclick=e=>{ if(e.target.id==='cardModal'){ startAfterCard=false; closeCard(); } };
 
+// форматування полів картки
+$('#ccNum').addEventListener('input',e=>{
+  let v=e.target.value.replace(/\D/g,'').slice(0,19);
+  e.target.value=v.replace(/(.{4})/g,'$1 ').trim();
+});
+$('#ccExp').addEventListener('input',e=>{
+  let v=e.target.value.replace(/\D/g,'').slice(0,4);
+  e.target.value = v.length>2 ? v.slice(0,2)+'/'+v.slice(2) : v;
+});
+$('#ccCvv').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,4); });
+
 $('#btnAttach').onclick=async e=>{
+  const num=$('#ccNum').value.replace(/\D/g,'');
+  const exp=$('#ccExp').value, cvv=$('#ccCvv').value.replace(/\D/g,'');
+  $('#ccErr').textContent='';
+  if(num.length<13){ $('#ccErr').textContent='Перевірте номер картки'; return; }
+  if(!/^\d{2}\/\d{2}$/.test(exp)){ $('#ccErr').textContent='Термін у форматі MM/YY'; return; }
+  if(cvv.length<3){ $('#ccErr').textContent='Перевірте CVV'; return; }
+  const last4=num.slice(-4);   // на сервер піде ЛИШЕ це
   e.target.disabled=true; e.target.textContent='Прив\u0027язуємо…';
-  const ok=await api.attachCard();
+  const ok=await api.attachCard(last4);
   e.target.disabled=false; e.target.textContent='Прив\u0027язати картку';
-  if(!ok){ toast('Не вдалося прив\u0027язати картку',true); return; }
+  if(!ok){ $('#ccErr').textContent='Не вдалося прив\u0027язати картку'; return; }
+  $('#ccNum').value=''; $('#ccExp').value=''; $('#ccCvv').value='';
   closeCard(); renderHome();
   toast('Картка прив\u0027язана · списань зараз немає');
   if(startAfterCard){ startAfterCard=false; doStart(); }
@@ -616,7 +745,7 @@ $('#sosBtn').onclick=async()=>{ await api.sos(); toast('Сигнал надіс�
 
 /* --------------------------- Boot ----------------------------------- */
 (function boot(){
-  setMode('login'); authStep('phone');
+  authView('Login');
   api.restore();
   renderHeader();
   if(!api.user.id){ show('auth'); }
