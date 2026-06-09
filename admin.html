@@ -291,9 +291,31 @@ function renderHead(){
   $('#gymLed').className='led '+(busy?'warn':'on');
   $('#gymState').textContent=busy?'Зал зайнятий':'Зал вільний';
 }
+
+// живі дані з /api/admin/state
+async function loadState(){
+  if(adminToken==='demo') return; // демо лишає mock
+  try{
+    const r=await fetch('/api/admin/state',{headers:{Authorization:'Bearer '+adminToken}});
+    if(r.status===401){ adminToken=null; store.del('tempo_admin'); dashStarted=false;
+      $('#dash').classList.add('hidden'); $('#login').classList.remove('hidden'); return; }
+    if(!r.ok) return;
+    const d=await r.json();
+    data.gymBusy = d.gymBusy;
+    data.live = d.live ? { client:d.live.client, startedAt:new Date(d.live.startedAt).getTime(), rate:d.live.rate, tariff:d.live.tariff } : null;
+    data.sessions = (d.sessions||[]).map(s=>({ time:s.time, client:s.client, live:s.live, sum:s.amount!=null?('₴'+s.amount):(s.live?'…':'—'), dur:s.live?'активна':'' }));
+    data.kpis = [
+      {k:'Виручка сьогодні', v:'₴'+(d.revenueToday||0), sub:(d.countToday||0)+' сесій', d:''},
+      {k:'Активна сесія', v:d.gymBusy?'1':'0', sub:d.gymBusy?'зал зайнятий':'зал вільний', d:''},
+      {k:'Сесій сьогодні', v:String(d.countToday||0), sub:'завершених', d:''},
+      {k:'Статус', v:d.gymBusy?'Зайнято':'Вільно', sub:'зараз', d:''},
+    ];
+    renderHead(); renderKpis(); renderSessions(); renderLive();
+  }catch(e){}
+}
 function renderKpis(){
   $('#kpis').innerHTML=data.kpis.map(x=>`
-    <div class="kpi"><span>${x.k}</span><b>${x.v}</b><i>${x.sub}</i><span class="delta">${x.d}</span></div>`).join('');
+    <div class="kpi"><span>${x.k}</span><b>${x.v}</b><i>${x.sub}</i>${x.d?`<span class="delta">${x.d}</span>`:''}</div>`).join('');
 }
 function renderHw(){
   $('#hw').innerHTML=data.hw.map(h=>`
@@ -437,11 +459,12 @@ function enterDash(){ $('#login').classList.add('hidden'); $('#dash').classList.
 $('#admEnter').onclick=tryLogin;
 $('#admPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
 
-let dashStarted=false;
+let dashStarted=false, statePoll=null;
 function initDash(){
   if(dashStarted) return; dashStarted=true;
   renderHead(); renderKpis(); renderHw(); renderAlerts(); renderTariffs(); renderSessions(); renderLive(); tickHeartbeat();
   loadSettings();
+  loadState(); clearInterval(statePoll); statePoll=setInterval(loadState, 5000); // живі дані кожні 5с
 }
 
 // автологін, якщо токен уже збережено

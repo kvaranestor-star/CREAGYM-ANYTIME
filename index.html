@@ -299,20 +299,10 @@
     <div class="sheet-grip"></div>
     <p class="eyebrow">Спосіб оплати</p>
     <h2 style="margin:0 0 8px;font-family:var(--disp);font-size:23px;font-weight:700;letter-spacing:-.5px">Прив'яжіть картку</h2>
-    <p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55">Гроші зараз не списуються. Перед стартом блокуємо депозит, а списуємо лише за фактичний час — похвилинно.</p>
-    <div class="cardform">
-      <div class="field"><label>Номер картки</label>
-        <input id="ccNum" inputmode="numeric" placeholder="0000 0000 0000 0000" maxlength="23" autocomplete="cc-number"></div>
-      <div class="two">
-        <div class="field"><label>Термін</label>
-          <input id="ccExp" inputmode="numeric" placeholder="MM/YY" maxlength="5" autocomplete="cc-exp"></div>
-        <div class="field"><label>CVV</label>
-          <input id="ccCvv" inputmode="numeric" placeholder="•••" maxlength="4" type="password" autocomplete="cc-csc"></div>
-      </div>
-    </div>
+    <p style="margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.55">Картку вводите на захищеній сторінці банку. Перед стартом блокуємо депозит, а списуємо лише за фактичний час — похвилинно. Вихід із залу завжди вільний.</p>
     <p class="auth-err" id="ccErr"></p>
-    <button class="go" id="btnAttach">Прив'язати картку</button>
-    <p class="hint">Дані передаються платіжному провайдеру. Ми зберігаємо лише останні 4 цифри.</p>
+    <button class="go" id="btnAttach">Перейти до оплати</button>
+    <p class="hint">Ви перейдете на сторінку Monobank. Ми зберігаємо лише останні 4 цифри.</p>
     <button class="sheet-close" id="cardClose">Пізніше</button>
   </div>
 </div>
@@ -437,50 +427,62 @@ const api = {
 
   logout(){ this.token=null; store.del('tempo_session'); this.user={ id:null, name:null, phone:null, cardLast4:null }; },
 
-  // Прив'язка картки — лише для самого клієнта (за його токеном).
-  // Передаємо ЛИШЕ останні 4 цифри. Повний номер/CVV нікуди не надсилаються.
-  async attachCard(last4){
-    if(this._demo || !this.token){ this.user.cardLast4=last4||'4242'; return true; } // прев'ю/демо
+  // Прив'язка картки → сторінка Monobank (токенізація на боці банку).
+  async attachCard(){
+    if(this._demo || !this.token){ this.user.cardLast4='4242'; return { demo:true }; } // прев'ю
     try{
-      const r = await fetch('/api/attach-card', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token },
-        body: JSON.stringify({ card_last4: last4 })
-      });
+      const r = await fetch('/api/attach-card', { method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
       if(!r.ok) throw new Error(r.status);
       const d = await r.json();
-      this.user.cardLast4 = d.card_last4;
-      const s = store.get('tempo_session'); if(s && s.client){ s.client.card_last4 = d.card_last4; store.set('tempo_session', s); }
-      return true;
-    }catch(err){ console.warn('attach-card', err.message); return false; }
+      return { pageUrl: d.pageUrl };   // фронт зробить редірект
+    }catch(err){ console.warn('attach-card', err.message); return { error:true }; }
   },
 
-  // Старт сесії: 1) preauth hold ₴HOLD  2) відкрити замок (ESP32)
-  // TODO Monobank: hold/preauth на HOLD грн.
-  // TODO ESP32: POST /unlock  (відкрити вхідний замок)
+  // Оновити профіль/статус залу/власну активну сесію.
+  async refresh(){
+    if(this._demo || !this.token) return;
+    try{
+      const r = await fetch('/api/me', { headers:{ Authorization:'Bearer '+this.token } });
+      if(r.status===401){ this.logout(); return; }
+      if(!r.ok) return;
+      const d = await r.json();
+      this.user.cardLast4 = d.client.card_last4 || null;
+      this.gym.status = d.gymBusy ? 'busy' : 'free';
+      this.active = d.active || null;
+      const s = store.get('tempo_session'); if(s && s.client){ s.client.card_last4=this.user.cardLast4; store.set('tempo_session', s); }
+    }catch(e){}
+  },
+
+  // Старт: hold депозиту + відкриття залу. Повертає {ok}|{error}.
   async startSession(){
-    await wait(500);
-    const t = tariffNow();
-    this.session = { startedAt:Date.now(), rate:t.rate, tariff:t.name };
-    this.gym.status = 'busy';
-    return this.session;
+    if(this._demo || !this.token){ this.session={ startedAt:Date.now(), rate:tariffNow().rate }; this.gym.status='busy'; return { ok:true }; }
+    try{
+      const r = await fetch('/api/start-session', { method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
+      if(r.status===409){ const e=await r.json().catch(()=>({})); return { error:e.error }; } // no_card|busy
+      if(!r.ok) return { error:'charge_failed' };
+      const d = await r.json();
+      this.session={ startedAt: new Date(d.startedAt).getTime(), rate:d.rate };
+      this.gym.status='busy';
+      return { ok:true };
+    }catch(e){ return { error:'network' }; }
   },
 
-  // Кінець сесії: 1) capture за фактом  2) (замок вихід не чіпаємо)
-  // TODO Monobank: capture фактичної суми, звільнити решту holdʼа.
+  // Кінець: finalize фактичної суми.
   async endSession(){
-    await wait(500);
-    const s=this.session;
-    const min = Math.max(1, Math.round((Date.now()-s.startedAt)/60000));
-    const cost = Math.round((s.rate/60)*min);
-    this.history.unshift({ date:nowLabel(), dur:fmtHMS((Date.now()-s.startedAt)/1000).slice(0,5), cost });
-    this.session=null; this.gym.status='free';
-    return { min, cost };
+    if(this._demo || !this.token){ const s=this.session; const min=Math.max(1,Math.round((Date.now()-s.startedAt)/60000)); const cost=Math.round((s.rate/60)*min); this.session=null; this.gym.status='free'; return { minutes:min, amount:cost }; }
+    try{
+      const r = await fetch('/api/end-session', { method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
+      if(!r.ok) return { error:true };
+      const d = await r.json();
+      this.session=null; this.gym.status='free';
+      return { minutes:d.minutes, amount:d.amount };
+    }catch(e){ return { error:true }; }
   },
 
-  // SOS: тривога власнику/охороні (НЕ блокує вихід).
-  // TODO: insert alert -> realtime -> панель власника + сповіщення охороні.
-  async sos(){ await wait(300); return true; },
+  async sos(){ /* TODO: insert alert → панель */ return true; },
 };
 
 /* ----------------------------- UI ----------------------------------- */
@@ -691,41 +693,25 @@ let startAfterCard=false;
 $('#cardClose').onclick=()=>{ startAfterCard=false; closeCard(); };
 $('#cardModal').onclick=e=>{ if(e.target.id==='cardModal'){ startAfterCard=false; closeCard(); } };
 
-// форматування полів картки
-$('#ccNum').addEventListener('input',e=>{
-  let v=e.target.value.replace(/\D/g,'').slice(0,19);
-  e.target.value=v.replace(/(.{4})/g,'$1 ').trim();
-});
-$('#ccExp').addEventListener('input',e=>{
-  let v=e.target.value.replace(/\D/g,'').slice(0,4);
-  e.target.value = v.length>2 ? v.slice(0,2)+'/'+v.slice(2) : v;
-});
-$('#ccCvv').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,4); });
-
 $('#btnAttach').onclick=async e=>{
-  const num=$('#ccNum').value.replace(/\D/g,'');
-  const exp=$('#ccExp').value, cvv=$('#ccCvv').value.replace(/\D/g,'');
   $('#ccErr').textContent='';
-  if(num.length<13){ $('#ccErr').textContent='Перевірте номер картки'; return; }
-  if(!/^\d{2}\/\d{2}$/.test(exp)){ $('#ccErr').textContent='Термін у форматі MM/YY'; return; }
-  if(cvv.length<3){ $('#ccErr').textContent='Перевірте CVV'; return; }
-  const last4=num.slice(-4);   // на сервер піде ЛИШЕ це
-  e.target.disabled=true; e.target.textContent='Прив\u0027язуємо…';
-  const ok=await api.attachCard(last4);
-  e.target.disabled=false; e.target.textContent='Прив\u0027язати картку';
-  if(!ok){ $('#ccErr').textContent='Не вдалося прив\u0027язати картку'; return; }
-  $('#ccNum').value=''; $('#ccExp').value=''; $('#ccCvv').value='';
-  closeCard(); renderHome();
-  toast('Картка прив\u0027язана · списань зараз немає');
-  if(startAfterCard){ startAfterCard=false; doStart(); }
+  e.target.disabled=true; e.target.textContent='Відкриваємо…';
+  const r=await api.attachCard();
+  if(r.pageUrl){ window.location.href=r.pageUrl; return; }       // → сторінка Monobank
+  if(r.demo){ closeCard(); renderHome(); toast('Демо: картку «прив\u0027язано»'); if(startAfterCard){startAfterCard=false;doStart();} e.target.disabled=false; e.target.textContent='Перейти до оплати'; return; }
+  e.target.disabled=false; e.target.textContent='Перейти до оплати';
+  $('#ccErr').textContent='Не вдалося відкрити оплату. Спробуйте ще раз.';
 };
 
 /* --------------------------- Events --------------------------------- */
 async function doStart(){
   const b=$('#btnStart');
   b.disabled=true; b.textContent='Відчиняємо двері…';
-  await api.startSession();
+  const r=await api.startSession();
   b.textContent='Почати тренування'; b.disabled=false;
+  if(r.error==='no_card'){ startAfterCard=true; openCard(); toast('Спочатку прив\u0027яжіть картку'); return; }
+  if(r.error==='busy'){ toast('Зал зараз зайнятий',true); renderHome(); return; }
+  if(r.error){ toast('Не вдалося списати депозит — перевірте картку',true); return; }
   startTicker(); show('live');
   toast(`Депозит-блок ₴${HOLD} · двері відчинені`);
 }
@@ -737,19 +723,33 @@ $('#btnStart').onclick=()=>{
 $('#btnEnd').onclick=async e=>{
   e.target.disabled=true; e.target.textContent='Завершуємо…';
   const r=await api.endSession();
-  stopTicker(); renderHome(); show('home');
   e.target.disabled=false; e.target.textContent='Завершити тренування';
-  toast(`Сесія ${r.min} хв · списано ₴${r.cost}`);
+  if(r.error){ toast('Помилка завершення, спробуйте ще раз',true); return; }
+  stopTicker(); renderHome(); show('home');
+  toast(`Сесія ${r.minutes} хв · списано ₴${r.amount}`);
 };
 $('#sosBtn').onclick=async()=>{ await api.sos(); toast('Сигнал надіслано. Допомога вже в дорозі.',true); };
 
 /* --------------------------- Boot ----------------------------------- */
-(function boot(){
+(async function boot(){
   authView('Login');
   api.restore();
   renderHeader();
-  if(!api.user.id){ show('auth'); }
-  else { renderHome(); show('home'); }
+  if(!api.user.id){ show('auth'); return; }
+  // оновити профіль/статус/активну сесію з бекенда
+  await api.refresh();
+  if(api.active){ // клієнт уже в залі — показати лічильник
+    api.session={ startedAt:new Date(api.active.startedAt).getTime(), rate:api.active.rate };
+    startTicker(); renderHome(); show('live');
+  } else {
+    renderHome(); show('home');
+  }
+  // повернення зі сторінки Monobank після прив'язки картки
+  if(location.search.includes('card=done')){
+    history.replaceState(null,'','/');
+    setTimeout(async()=>{ await api.refresh(); renderHome();
+      toast(api.user.cardLast4 ? 'Картку прив\u0027язано' : 'Перевіряємо картку…'); }, 1500);
+  }
 })();
 </script>
 </body>
