@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>tempo — почасовий зал</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0D10; --surface:#14171C; --surface2:#1C2027; --line:#2A2F38;
+    --text:#F2F4F7; --muted:#8A93A2; --faint:#5A626E;
+    --go:#FFD300; --go-dim:#3a3411; --live:#FFD300; --danger:#FF5247; --ok:#3DDC84;
+    --r:18px;
+    --mono:'Space Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',system-ui,sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--body);
+    min-height:100dvh; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(120% 60% at 50% -10%, #15191f 0%, var(--bg) 60%);
+  }
+  .wrap{max-width:440px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;
+    padding:max(18px,env(safe-area-inset-top)) 18px max(18px,env(safe-area-inset-bottom));}
+  /* top bar */
+  .top{display:flex; align-items:center; justify-content:space-between; padding:6px 2px 22px;}
+  .brand{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-.5px; display:flex; align-items:center; gap:9px}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--go);box-shadow:0 0 14px var(--go)}
+  .who{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .who .av{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);
+    display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--text)}
+  /* status pill */
+  .status{display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line);
+    border-radius:999px; padding:9px 14px; font-size:13px; width:fit-content; margin-bottom:18px}
+  .status .led{width:8px;height:8px;border-radius:50%}
+  .led.free{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .led.busy{background:var(--danger);box-shadow:0 0 10px var(--danger)}
+  .status b{font-weight:600}
+  /* card */
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px;}
+  .card + .card{margin-top:14px}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--faint); margin:0 0 10px}
+  /* tariff */
+  .tariff{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .tariff .rate{font-family:var(--mono); font-size:30px; font-weight:700; letter-spacing:-1px}
+  .tariff .rate small{font-size:14px; color:var(--muted); font-weight:400}
+  .tariff .win{text-align:right; font-size:13px; color:var(--muted)}
+  .tariff .win b{display:block; color:var(--text); font-family:var(--disp); font-weight:500; font-size:15px}
+  .ladder{display:flex; gap:6px; margin-top:16px}
+  .ladder .t{flex:1; text-align:center; padding:9px 4px; border-radius:10px; background:var(--surface2); border:1px solid transparent; font-size:11px; color:var(--muted)}
+  .ladder .t.active{border-color:var(--go); color:var(--text)}
+  .ladder .t b{display:block; font-family:var(--mono); font-size:14px; color:var(--text); margin-top:3px}
+  /* big action */
+  .spacer{flex:1; min-height:18px}
+  .go{appearance:none; border:0; width:100%; padding:20px; border-radius:var(--r);
+    font-family:var(--disp); font-weight:700; font-size:19px; letter-spacing:.2px;
+    background:var(--go); color:#000; cursor:pointer; transition:transform .08s ease, filter .15s ease;
+    display:flex; align-items:center; justify-content:center; gap:10px}
+  .go:active{transform:scale(.985)}
+  .go:disabled{background:var(--surface2); color:var(--faint); cursor:not-allowed; box-shadow:none}
+  .go.ghost{background:transparent; color:var(--text); border:1px solid var(--line); font-size:16px; padding:16px}
+  .go.danger{background:var(--danger); color:#fff}
+  .hint{font-size:12px; color:var(--muted); text-align:center; margin-top:12px; line-height:1.5}
+  .hint b{color:var(--text); font-weight:500}
+  /* live meter screen */
+  .meter{flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:8px 0}
+  .meter .liveTag{font-family:var(--mono); font-size:12px; letter-spacing:3px; color:var(--go); text-transform:uppercase; display:flex; align-items:center; gap:8px}
+  .meter .liveTag .pulse{width:8px;height:8px;border-radius:50%;background:var(--go);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
+  .clock{font-family:var(--mono); font-weight:700; font-size:64px; letter-spacing:-2px; line-height:1; margin:18px 0 6px; font-variant-numeric:tabular-nums}
+  .cost{font-family:var(--disp); font-size:22px; font-weight:500}
+  .cost b{font-weight:700}
+  .meta{display:flex; gap:10px; margin:26px 0 0; width:100%}
+  .meta .m{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:13px 10px}
+  .meta .m span{display:block; font-family:var(--mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint)}
+  .meta .m b{display:block; font-size:15px; margin-top:5px; font-weight:600}
+  .doorline{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;font-size:13px;color:var(--muted)}
+  .doorline .led{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  /* history */
+  .hist{margin-top:14px}
+  .hrow{display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--line)}
+  .hrow:last-child{border-bottom:0}
+  .hrow .l{font-size:14px}
+  .hrow .l span{display:block; font-size:12px; color:var(--muted); margin-top:2px}
+  .hrow .r{font-family:var(--mono); font-weight:700}
+  .empty{color:var(--faint); font-size:13px; text-align:center; padding:18px 0}
+  /* sos */
+  .sos{position:fixed; left:50%; transform:translateX(-50%); bottom:max(14px,env(safe-area-inset-bottom)); 
+    background:var(--surface); border:1px solid var(--danger); color:var(--danger);
+    border-radius:999px; padding:10px 18px; font-size:13px; font-weight:600; cursor:pointer; z-index:5}
+  /* toast */
+  .toast{position:fixed; left:50%; bottom:84px; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:#fff; color:#000; font-size:13px; font-weight:500; padding:11px 16px; border-radius:12px;
+    transition:.25s; pointer-events:none; z-index:10; max-width:90%; text-align:center}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .toast.warn{background:var(--danger); color:#fff}
+  /* live body tint */
+  body.is-live{background-image:radial-gradient(130% 70% at 50% -10%, #25210a 0%, var(--bg) 55%)}
+  .footlink{text-align:center; margin-top:16px; display:flex; gap:18px; justify-content:center}
+  .footlink a{color:var(--faint); font-size:12px; text-decoration:none; border-bottom:1px dotted var(--faint); cursor:pointer}
+  /* auth */
+  .authhead{margin:6px 0 18px}
+  .authhead h2{margin:0;font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.6px}
+  .authhead p{margin:6px 0 0;color:var(--muted);font-size:14px}
+  .tabs{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:18px}
+  .tabs button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);font-family:var(--body);font-size:14px;font-weight:600;padding:11px;border-radius:9px;cursor:pointer;transition:.15s}
+  .tabs button.active{background:var(--bg);color:var(--text)}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin:0 0 7px}
+  .field input{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:15px 16px;font-size:16px;font-family:var(--body)}
+  .field input:focus{outline:none;border-color:var(--go)}
+  .field input::placeholder{color:var(--faint)}
+  .otp{display:flex;gap:10px;margin:4px 0 6px}
+  .otp input{flex:1;text-align:center;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:16px 0;font-family:var(--mono);font-size:24px;font-weight:700}
+  .otp input:focus{outline:none;border-color:var(--go)}
+  .resend{display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:13px;color:var(--muted)}
+  .resend a{color:var(--text);cursor:pointer;border-bottom:1px dotted var(--faint)}
+  .demohint{font-size:11px;color:var(--faint);text-align:center;margin-top:10px}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand"><span class="dot"></span>tempo</div>
+    <div class="who"><span id="whoName">Гість</span><span class="av" id="whoAv">Г</span></div>
+  </div>
+
+  <!-- ====== SCREEN: AUTH (login / register) ====== -->
+  <section id="screenAuth" class="hidden">
+    <div class="status"><span class="led free"></span><b>Зал у вашому ЖК</b></div>
+
+    <!-- step 1: phone -->
+    <div id="authPhone">
+      <div class="authhead">
+        <h2 id="authTitle">Вхід у tempo</h2>
+        <p id="authSub">Увійдіть за номером телефону — надішлемо код.</p>
+      </div>
+      <div class="tabs">
+        <button id="tabLogin" class="active" type="button">Вхід</button>
+        <button id="tabReg" type="button">Реєстрація</button>
+      </div>
+      <div class="field" id="nameField" style="display:none">
+        <label>Ім'я</label>
+        <input id="inName" type="text" placeholder="Як вас звати" autocomplete="given-name">
+      </div>
+      <div class="field">
+        <label>Телефон</label>
+        <input id="inPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel">
+      </div>
+      <div class="spacer"></div>
+      <button class="go" id="btnGetCode">Отримати код</button>
+      <p class="hint">Продовжуючи, ви приймаєте <b>умови оренди</b> та політику конфіденційності.</p>
+    </div>
+
+    <!-- step 2: otp -->
+    <div id="authOtp" class="hidden">
+      <div class="authhead">
+        <h2>Введіть код</h2>
+        <p>Надіслали SMS на <b id="otpPhone" style="color:var(--text)"></b></p>
+      </div>
+      <div class="otp">
+        <input maxlength="1" inputmode="numeric" data-i="0">
+        <input maxlength="1" inputmode="numeric" data-i="1">
+        <input maxlength="1" inputmode="numeric" data-i="2">
+        <input maxlength="1" inputmode="numeric" data-i="3">
+      </div>
+      <div class="resend">
+        <a id="changeNum">← Змінити номер</a>
+        <span id="resendBox">Новий код через <b id="resendT">30</b> с</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="go" id="btnVerify" disabled>Підтвердити</button>
+      <p class="demohint">Демо: підійде будь-який 4-значний код</p>
+    </div>
+  </section>
+
+  <!-- ====== SCREEN: ATTACH CARD ====== -->
+  <section id="screenAttach" class="hidden">
+    <div class="status"><span class="led free"></span><b>Зал вільний</b></div>
+    <div class="card">
+      <p class="eyebrow">Перший вхід</p>
+      <h2 style="margin:0 0 8px;font-family:var(--disp);font-size:24px;font-weight:700;letter-spacing:-.5px">Прив'яжіть картку</h2>
+      <p style="margin:0;color:var(--muted);font-size:14px">Гроші не списуються зараз. Перед стартом тренування ми блокуємо депозит, а списуємо тільки за фактичний час — похвилинно. Вихід із залу завжди вільний.</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="go" id="btnAttach">Прив'язати картку</button>
+    <p class="hint">Натискаючи, ви приймаєте <b>умови оренди</b> та згоду на похвилинне списання.</p>
+  </section>
+
+  <!-- ====== SCREEN: HOME (idle) ====== -->
+  <section id="screenHome" class="hidden">
+    <div class="status" id="homeStatus"><span class="led free"></span><b>Зал вільний</b></div>
+    <div class="card">
+      <p class="eyebrow">Тариф зараз</p>
+      <div class="tariff">
+        <div class="rate" id="rateNow">—<small> ₴/год</small></div>
+        <div class="win"><b id="winName">—</b><span id="winTime">—</span></div>
+      </div>
+      <div class="ladder" id="ladder"></div>
+    </div>
+
+    <div class="card">
+      <p class="eyebrow">Як це працює</p>
+      <p style="margin:0;color:var(--muted);font-size:13.5px;line-height:1.6">
+        Натисніть «Почати» — двері відчиняться, лічильник піде. Списуємо похвилинно за тарифом. Завершуєте кнопкою або просто йдете — сесія закриється автоматично. Депозит-блок <b style="color:var(--text)">₴<span id="holdAmt">300</span></b>.
+      </p>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="go" id="btnStart">Почати тренування</button>
+    <p class="hint" id="startHint">Двері відчиняться одразу після старту.</p>
+
+    <div class="card hist" id="histCard" style="margin-top:18px">
+      <p class="eyebrow">Останні сесії</p>
+      <div id="histList"></div>
+    </div>
+    <div class="footlink"><a href="admin.html">Панель власника →</a><a id="logout">Вийти</a></div>
+  </section>
+
+  <!-- ====== SCREEN: LIVE SESSION ====== -->
+  <section id="screenLive" class="hidden" style="flex:1;display:flex;flex-direction:column">
+    <div class="meter">
+      <div class="liveTag"><span class="pulse"></span>Сесія активна</div>
+      <div class="clock" id="clock">00:00:00</div>
+      <div class="cost">₴<b id="costNow">0.00</b></div>
+      <div class="meta">
+        <div class="m"><span>Тариф</span><b id="liveRate">—</b></div>
+        <div class="m"><span>Депозит-блок</span><b id="liveHold">—</b></div>
+        <div class="m"><span>Ліміт сесії</span><b id="liveCap">3 год</b></div>
+      </div>
+      <div class="doorline"><span class="led"></span>Двері відчинені · вихід вільний у будь-який час</div>
+    </div>
+    <button class="go danger" id="btnEnd">Завершити тренування</button>
+    <p class="hint">Якщо просто підете — сесія закриється сама за <b>10 хв</b> без руху.</p>
+  </section>
+
+</div>
+
+<button class="sos hidden" id="sosBtn">SOS · виклик допомоги</button>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   tempo — клієнтський застосунок (демо-логіка на mock-даних)
+   Заміни шар `api` нижче на реальні виклики Supabase / Monobank / ESP32.
+   ВАЖЛИВО (безпека): вхід — за оплатою; ВИХІД ІЗНУТРІ — ЗАВЖДИ ВІЛЬНИЙ.
+   Електрозамок тримає лише вхід, не блокує вихід (пожежна норма).
+===================================================================== */
+
+const BRAND = 'tempo';                 // ← робоча назва, постав свою
+const HOLD = 300;                      // депозит-блок, ₴ (preauth)
+const HARD_CAP_MIN = 180;              // жорсткий ліміт сесії, хв
+const IDLE_END_MIN = 10;               // автозакриття без руху, хв
+
+// Тарифні вікна (год.доби → ₴/год). Похвилинно = rate/60.
+const TARIFFS = [
+  { id:'night', name:'Ніч',  from:0,  to:7,  rate:60,  label:'00–07' },
+  { id:'day',   name:'День', from:7,  to:18, rate:80,  label:'07–18' },
+  { id:'prime', name:'Прайм',from:18, to:24, rate:120, label:'18–24' },
+];
+
+function tariffNow(d=new Date()){
+  const h=d.getHours();
+  return TARIFFS.find(t=> h>=t.from && h<t.to) || TARIFFS[1];
+}
+
+/* ---------------------------------------------------------------------
+   ШАР API — ЗАМІНИ НА SUPABASE / MONOBANK / ESP32
+   У демо все працює локально, сесія тікає в реальному часі.
+--------------------------------------------------------------------- */
+const api = {
+  user:{ id:null, name:null, phone:null, cardLast4:null },  // ← Supabase auth + profile
+  gym:{ status:'free' },                      // 'free' | 'busy'  ← realtime
+  session:null,                               // активна сесія
+  history:[                                   // ← select from sessions
+    { date:'Вчора, 19:20', dur:'01:05', cost:130 },
+    { date:'08 чер, 07:40', dur:'00:48', cost:64 },
+  ],
+  _pending:null,                              // тимчасові дані під час OTP
+
+  // Реєстрація/вхід за телефоном. Надсилаємо OTP.
+  // TODO Supabase: signInWithOtp({phone}) — або власний код через TurboSMS (Vercel proxy).
+  async requestOtp(phone, name, mode){
+    await wait(700);
+    this._pending = { phone, name: name||null, mode };
+    return true;                              // у демо код будь-який 4-значний
+  },
+
+  // Перевірка коду. На реєстрації — створюємо профіль.
+  // TODO Supabase: verifyOtp({phone, token}) → upsert у profiles (name, phone).
+  async verifyOtp(code){
+    await wait(500);
+    if(!/^\d{4}$/.test(code)) return false;
+    const p=this._pending||{};
+    this.user.id = 'u_'+p.phone;
+    this.user.phone = p.phone;
+    this.user.name = p.name || 'Ви';
+    this._pending=null;
+    return true;
+  },
+
+  logout(){ this.user={ id:null, name:null, phone:null, cardLast4:null }; },
+
+  // Прив'язка картки: токенізація + згода на MIT (merchant-initiated).
+  // TODO Monobank: створити токен картки для подальших списань без клієнта.
+  async attachCard(){
+    await wait(700);
+    this.user.cardLast4 = '4421';
+    this.user.name = 'Ви';
+    return true;
+  },
+
+  // Старт сесії: 1) preauth hold ₴HOLD  2) відкрити замок (ESP32)
+  // TODO Monobank: hold/preauth на HOLD грн.
+  // TODO ESP32: POST /unlock  (відкрити вхідний замок)
+  async startSession(){
+    await wait(500);
+    const t = tariffNow();
+    this.session = { startedAt:Date.now(), rate:t.rate, tariff:t.name };
+    this.gym.status = 'busy';
+    return this.session;
+  },
+
+  // Кінець сесії: 1) capture за фактом  2) (замок вихід не чіпаємо)
+  // TODO Monobank: capture фактичної суми, звільнити решту holdʼа.
+  async endSession(){
+    await wait(500);
+    const s=this.session;
+    const min = Math.max(1, Math.round((Date.now()-s.startedAt)/60000));
+    const cost = Math.round((s.rate/60)*min);
+    this.history.unshift({ date:nowLabel(), dur:fmtHMS((Date.now()-s.startedAt)/1000).slice(0,5), cost });
+    this.session=null; this.gym.status='free';
+    return { min, cost };
+  },
+
+  // SOS: тривога власнику/охороні (НЕ блокує вихід).
+  // TODO: insert alert -> realtime -> панель власника + сповіщення охороні.
+  async sos(){ await wait(300); return true; },
+};
+
+/* ----------------------------- UI ----------------------------------- */
+const $=s=>document.querySelector(s);
+const screens={auth:$('#screenAuth'),attach:$('#screenAttach'),home:$('#screenHome'),live:$('#screenLive')};
+let tick=null;
+
+function show(name){
+  Object.values(screens).forEach(s=>s.classList.add('hidden'));
+  screens[name].classList.remove('hidden');
+  document.body.classList.toggle('is-live', name==='live');
+  $('#sosBtn').classList.toggle('hidden', name!=='live');
+  document.querySelector('.who').style.visibility = name==='auth' ? 'hidden' : 'visible';
+}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+function pad(n){return String(n).padStart(2,'0')}
+function fmtHMS(sec){sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${pad(h)}:${pad(m)}:${pad(s)}`}
+function nowLabel(){const d=new Date();return `Сьогодні, ${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function toast(msg,warn){const t=$('#toast');t.textContent=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2600)}
+
+function renderHeader(){
+  const n=api.user.name||'Гість';
+  $('#whoName').textContent=n;
+  $('#whoAv').textContent=(n[0]||'Г').toUpperCase();
+}
+
+function renderHome(){
+  renderHeader();
+  const t=tariffNow();
+  $('#rateNow').innerHTML=`${t.rate}<small> ₴/год</small>`;
+  $('#winName').textContent=t.name;
+  $('#winTime').textContent=t.label;
+  $('#holdAmt').textContent=HOLD;
+  // ladder
+  $('#ladder').innerHTML=TARIFFS.map(x=>`
+    <div class="t ${x.id===t.id?'active':''}">${x.name}<b>${x.rate}₴</b></div>`).join('');
+  // status
+  const free = api.gym.status==='free';
+  $('#homeStatus').innerHTML = free
+    ? '<span class="led free"></span><b>Зал вільний</b>'
+    : '<span class="led busy"></span><b>Зал зайнятий</b>';
+  $('#btnStart').disabled=!free;
+  $('#startHint').textContent = free ? 'Двері відчиняться одразу після старту.' : 'Зараз у залі хтось тренується — спробуйте пізніше.';
+  // history
+  const h=api.history;
+  $('#histList').innerHTML = h.length ? h.slice(0,4).map(r=>`
+    <div class="hrow"><div class="l">${r.date}<span>${r.dur} год</span></div><div class="r">₴${r.cost}</div></div>`).join('')
+    : '<div class="empty">Поки що порожньо</div>';
+}
+
+function startTicker(){
+  const s=api.session;
+  $('#liveRate').textContent=`${s.rate} ₴/год`;
+  $('#liveHold').textContent=`₴${HOLD}`;
+  const update=()=>{
+    const sec=(Date.now()-s.startedAt)/1000;
+    $('#clock').textContent=fmtHMS(sec);
+    const cost=(s.rate/3600)*sec;          // похвилинно (для демо — посекундно плавно)
+    $('#costNow').textContent=cost.toFixed(2);
+    if(sec/60>=HARD_CAP_MIN){ toast('Досягнуто ліміт сесії — списання зупинено',true); }
+  };
+  update(); tick=setInterval(update,1000);
+}
+function stopTicker(){clearInterval(tick);tick=null}
+
+/* --------------------------- Auth ----------------------------------- */
+let authMode='login';   // 'login' | 'register'
+let resendTimer=null;
+
+function setMode(m){
+  authMode=m;
+  $('#tabLogin').classList.toggle('active', m==='login');
+  $('#tabReg').classList.toggle('active', m==='register');
+  $('#nameField').style.display = m==='register' ? 'block' : 'none';
+  $('#authTitle').textContent = m==='register' ? 'Реєстрація' : 'Вхід у tempo';
+  $('#authSub').textContent = m==='register'
+    ? 'Створіть акаунт — надішлемо код на телефон.'
+    : 'Увійдіть за номером телефону — надішлемо код.';
+}
+function authStep(step){
+  $('#authPhone').classList.toggle('hidden', step!=='phone');
+  $('#authOtp').classList.toggle('hidden', step!=='otp');
+}
+function startResend(){
+  let s=30; $('#resendT').textContent=s; $('#resendBox').innerHTML='Новий код через <b id="resendT">'+s+'</b> с';
+  clearInterval(resendTimer);
+  resendTimer=setInterval(()=>{
+    s--;
+    if(s<=0){ clearInterval(resendTimer); $('#resendBox').innerHTML='<a id="reSend">Надіслати код ще раз</a>';
+      $('#reSend').onclick=()=>{ toast('Код надіслано ще раз'); startResend(); }; }
+    else { const el=$('#resendT'); if(el) el.textContent=s; }
+  },1000);
+}
+function otpValue(){ return [...document.querySelectorAll('.otp input')].map(i=>i.value).join(''); }
+
+$('#tabLogin').onclick=()=>setMode('login');
+$('#tabReg').onclick=()=>setMode('register');
+
+$('#btnGetCode').onclick=async e=>{
+  const phone=$('#inPhone').value.trim();
+  const name=$('#inName').value.trim();
+  if(phone.replace(/\D/g,'').length<9){ toast('Введіть номер телефону',true); return; }
+  if(authMode==='register' && !name){ toast('Вкажіть ім\u0027я',true); return; }
+  e.target.disabled=true; e.target.textContent='Надсилаємо код…';
+  await api.requestOtp(phone, name, authMode);
+  e.target.disabled=false; e.target.textContent='Отримати код';
+  $('#otpPhone').textContent=phone;
+  document.querySelectorAll('.otp input').forEach(i=>i.value='');
+  authStep('otp'); startResend();
+  document.querySelector('.otp input').focus();
+  toast('Код надіслано в SMS');
+};
+
+// OTP: автоперехід між полями
+document.querySelectorAll('.otp input').forEach((inp,idx,arr)=>{
+  inp.addEventListener('input',()=>{
+    inp.value=inp.value.replace(/\D/g,'').slice(0,1);
+    if(inp.value && arr[idx+1]) arr[idx+1].focus();
+    $('#btnVerify').disabled = otpValue().length!==4;
+  });
+  inp.addEventListener('keydown',e=>{ if(e.key==='Backspace' && !inp.value && arr[idx-1]) arr[idx-1].focus(); });
+});
+
+$('#changeNum').onclick=()=>{ clearInterval(resendTimer); authStep('phone'); };
+
+$('#btnVerify').onclick=async e=>{
+  e.target.disabled=true; e.target.textContent='Перевіряємо…';
+  const ok=await api.verifyOtp(otpValue());
+  if(!ok){ e.target.disabled=false; e.target.textContent='Підтвердити'; toast('Невірний код',true); return; }
+  clearInterval(resendTimer);
+  e.target.disabled=false; e.target.textContent='Підтвердити';
+  renderHeader();
+  // після входу: немає картки → привязка, інакше → головна
+  if(!api.user.cardLast4){ show('attach'); }
+  else { renderHome(); show('home'); }
+  toast('Вітаємо, '+api.user.name+'!');
+};
+
+$('#logout').onclick=()=>{ stopTicker&&stopTicker(); api.logout(); setMode('login'); authStep('phone');
+  $('#inPhone').value=''; $('#inName').value=''; renderHeader(); show('auth'); };
+
+/* --------------------------- Events --------------------------------- */
+$('#btnAttach').onclick=async e=>{
+  e.target.disabled=true; e.target.textContent='Прив\u0027язуємо…';
+  await api.attachCard();
+  renderHome(); show('home');
+  toast('Картка прив\u0027язана · списань зараз немає');
+};
+$('#btnStart').onclick=async e=>{
+  e.target.disabled=true; e.target.textContent='Відчиняємо двері…';
+  await api.startSession();
+  e.target.textContent='Почати тренування';
+  startTicker(); show('live');
+  toast(`Депозит-блок ₴${HOLD} · двері відчинені`);
+};
+$('#btnEnd').onclick=async e=>{
+  e.target.disabled=true; e.target.textContent='Завершуємо…';
+  const r=await api.endSession();
+  stopTicker(); renderHome(); show('home');
+  e.target.disabled=false; e.target.textContent='Завершити тренування';
+  toast(`Сесія ${r.min} хв · списано ₴${r.cost}`);
+};
+$('#sosBtn').onclick=async()=>{ await api.sos(); toast('Сигнал надіслано. Допомога вже в дорозі.',true); };
+
+/* --------------------------- Boot ----------------------------------- */
+(function boot(){
+  setMode('login'); authStep('phone');
+  renderHeader();
+  if(!api.user.id){ show('auth'); }
+  else if(!api.user.cardLast4){ show('attach'); }
+  else { renderHome(); show('home'); }
+})();
+</script>
+</body>
+</html>
