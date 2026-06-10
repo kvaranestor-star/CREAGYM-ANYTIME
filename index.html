@@ -353,7 +353,7 @@ const api = {
     { date:'Вчора, 19:20', dur:'01:05', cost:130 },
     { date:'08 чер, 07:40', dur:'00:48', cost:64 },
   ],
-  _pending:null, _demo:false,
+  _pending:null,
 
   _setSession(d){
     this.token=d.token;
@@ -361,7 +361,7 @@ const api = {
     store.set('tempo_session', d);
   },
 
-  // РЕЄСТРАЦІЯ крок 1: ім'я+телефон+пароль → SMS-код. Повертає {ok}|{error}.
+  // РЕЄСТРАЦІЯ крок 1: ім'я+телефон+пароль → SMS-код.
   async register(phone, name, password){
     this._pending = { phone, mode:'register' };
     try{
@@ -369,9 +369,10 @@ const api = {
         body: JSON.stringify({ phone, name, password, purpose:'register' }) });
       if(r.status===409) return { error:'exists' };
       if(r.status===429){ const e=await r.json().catch(()=>({})); return { error:'cooldown', wait:e.wait }; }
-      if(!r.ok) throw new Error(r.status);
-      this._demo=false; return { ok:true };
-    }catch(err){ this._demo=true; return { ok:true, demo:true }; }
+      if(r.status===502) return { error:'sms' };
+      if(!r.ok) return { error:'server' };
+      return { ok:true };
+    }catch(err){ return { error:'network' }; }
   },
 
   // ВХІД: телефон+пароль, без SMS.
@@ -380,11 +381,9 @@ const api = {
       const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ phone, password }) });
       if(r.status===401) return { error:'bad' };
-      if(!r.ok) throw new Error(r.status);
+      if(!r.ok) return { error:'server' };
       this._setSession(await r.json()); return { ok:true };
-    }catch(err){
-      this._demo=true; this.user={ id:'demo', name:'Ви', phone, cardLast4:null }; return { ok:true, demo:true };
-    }
+    }catch(err){ return { error:'network' }; }
   },
 
   // ВІДНОВЛЕННЯ крок 1: телефон → SMS-код.
@@ -395,23 +394,20 @@ const api = {
         body: JSON.stringify({ phone, purpose:'reset' }) });
       if(r.status===404) return { error:'no_account' };
       if(r.status===429){ const e=await r.json().catch(()=>({})); return { error:'cooldown', wait:e.wait }; }
-      if(!r.ok) throw new Error(r.status);
-      this._demo=false; return { ok:true };
-    }catch(err){ this._demo=true; return { ok:true, demo:true }; }
+      if(r.status===502) return { error:'sms' };
+      if(!r.ok) return { error:'server' };
+      return { ok:true };
+    }catch(err){ return { error:'network' }; }
   },
 
   // Крок 2 (спільний): перевірити код. password — лише для відновлення.
   async verifyCode(code, password){
     const p=this._pending||{};
-    if(this._demo){
-      if(!/^\d{4}$/.test(code)) return { error:'wrong' };
-      this.user={ id:'demo', name:'Ви', phone:p.phone, cardLast4:null }; this._pending=null; return { ok:true };
-    }
     try{
       const r = await fetch('/api/verify-otp', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ phone:p.phone, code, password }) });
       if(r.status===400) return { error:'wrong' };
-      if(!r.ok) throw new Error(r.status);
+      if(!r.ok) return { error:'server' };
       this._setSession(await r.json()); this._pending=null; return { ok:true };
     }catch(err){ return { error:'server' }; }
   },
@@ -429,7 +425,7 @@ const api = {
 
   // Прив'язка картки → сторінка Monobank (токенізація на боці банку).
   async attachCard(){
-    if(this._demo || !this.token){ this.user.cardLast4='4242'; return { demo:true }; } // прев'ю
+    if(!this.token){ return { error:true }; }
     try{
       const r = await fetch('/api/attach-card', { method:'POST',
         headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
@@ -441,7 +437,7 @@ const api = {
 
   // Оновити профіль/статус залу/власну активну сесію.
   async refresh(){
-    if(this._demo || !this.token) return;
+    if(!this.token) return;
     try{
       const r = await fetch('/api/me', { headers:{ Authorization:'Bearer '+this.token } });
       if(r.status===401){ this.logout(); return; }
@@ -456,7 +452,7 @@ const api = {
 
   // Старт: hold депозиту + відкриття залу. Повертає {ok}|{error}.
   async startSession(){
-    if(this._demo || !this.token){ this.session={ startedAt:Date.now(), rate:tariffNow().rate }; this.gym.status='busy'; return { ok:true }; }
+    if(!this.token) return { error:'network' };
     try{
       const r = await fetch('/api/start-session', { method:'POST',
         headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
@@ -471,7 +467,7 @@ const api = {
 
   // Кінець: finalize фактичної суми.
   async endSession(){
-    if(this._demo || !this.token){ const s=this.session; const min=Math.max(1,Math.round((Date.now()-s.startedAt)/60000)); const cost=Math.round((s.rate/60)*min); this.session=null; this.gym.status='free'; return { minutes:min, amount:cost }; }
+    if(!this.token) return { error:true };
     try{
       const r = await fetch('/api/end-session', { method:'POST',
         headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
@@ -600,10 +596,10 @@ function goToOtp(phone, mode){
   $('#otpNewPass').classList.toggle('hidden', mode!=='reset');
   document.querySelectorAll('.otp input').forEach(i=>i.value='');
   $('#btnVerify').disabled=true;
-  $('#otpHint').textContent = api._demo ? 'Прев\u0027ю без бекенда: будь-який 4-значний код.' : 'Код діє 5 хвилин.';
+  $('#otpHint').textContent = 'Код діє 5 хвилин.';
   authView('Otp'); startResend();
   document.querySelector('.otp input').focus();
-  toast(api._demo ? 'Демо-режим (бекенд недоступний)' : 'Код надіслано в SMS');
+  toast('Код надіслано в SMS');
 }
 let regCache={name:'',password:''};
 
@@ -621,6 +617,7 @@ $('#btnLogin').onclick=async e=>{
   const r=await api.login(phone, pass);
   e.target.disabled=false; e.target.textContent='Увійти';
   if(r.error==='bad'){ toast('Невірний телефон або пароль',true); return; }
+  if(r.error){ toast('Сервер недоступний, спробуйте пізніше',true); return; }
   renderHome(); show('home'); toast('Вітаємо, '+api.user.name+'!');
 };
 
@@ -638,6 +635,8 @@ $('#btnReg').onclick=async e=>{
   e.target.disabled=false; e.target.textContent='Отримати код';
   if(r.error==='exists'){ toast('Такий номер уже зареєстровано — увійдіть',true); authView('Login'); return; }
   if(r.error==='cooldown'){ toast(`Зачекайте ${r.wait||60} с перед новим SMS`,true); return; }
+  if(r.error==='sms'){ toast('Не вдалося надіслати SMS. Спробуйте пізніше',true); return; }
+  if(r.error){ toast('Сервер недоступний, спробуйте пізніше',true); return; }
   goToOtp(phone,'register');
 };
 
@@ -650,6 +649,8 @@ $('#btnForgot').onclick=async e=>{
   e.target.disabled=false; e.target.textContent='Надіслати код';
   if(r.error==='no_account'){ toast('Акаунт із таким номером не знайдено',true); return; }
   if(r.error==='cooldown'){ toast(`Зачекайте ${r.wait||60} с перед новим SMS`,true); return; }
+  if(r.error==='sms'){ toast('Не вдалося надіслати SMS. Спробуйте пізніше',true); return; }
+  if(r.error){ toast('Сервер недоступний, спробуйте пізніше',true); return; }
   goToOtp(phone,'reset');
 };
 
@@ -698,7 +699,6 @@ $('#btnAttach').onclick=async e=>{
   e.target.disabled=true; e.target.textContent='Відкриваємо…';
   const r=await api.attachCard();
   if(r.pageUrl){ window.location.href=r.pageUrl; return; }       // → сторінка Monobank
-  if(r.demo){ closeCard(); renderHome(); toast('Демо: картку «прив\u0027язано»'); if(startAfterCard){startAfterCard=false;doStart();} e.target.disabled=false; e.target.textContent='Перейти до оплати'; return; }
   e.target.disabled=false; e.target.textContent='Перейти до оплати';
   $('#ccErr').textContent='Не вдалося відкрити оплату. Спробуйте ще раз.';
 };

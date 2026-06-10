@@ -142,7 +142,6 @@
     <div class="f"><label>Пароль</label><input id="admPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <p class="err" id="admErr"></p>
     <button class="enter" id="admEnter">Увійти</button>
-    <p class="demohint">Демо-доступ:<br>owner@tempo.ua · tempo2026</p>
   </div>
 </div>
 
@@ -230,9 +229,6 @@ const TARIFFS=[
 
 // ---- ДОСТУП ВЛАСНИКА ----
 // Логін/пароль перевіряються на сервері (/api/admin/login, env ADMIN_EMAIL/ADMIN_PASSWORD).
-// Демо-доступ нижче працює лише коли бекенд недоступний (локальний прев'ю).
-const DEMO_EMAIL='owner@tempo.ua';
-const DEMO_PASS ='tempo2026';
 
 // ---- Інтеграції: опис полів. Значення приходять із /api/admin/settings ----
 const INTG=[
@@ -294,7 +290,6 @@ function renderHead(){
 
 // живі дані з /api/admin/state
 async function loadState(){
-  if(adminToken==='demo') return; // демо лишає mock
   try{
     const r=await fetch('/api/admin/state',{headers:{Authorization:'Bearer '+adminToken}});
     if(r.status===401){ adminToken=null; store.del('tempo_admin'); dashStarted=false;
@@ -403,10 +398,6 @@ function renderIntg(){
 }
 
 async function loadSettings(){
-  if(adminToken==='demo'){
-    curSettings={ turbosms_token:{set:true}, turbosms_sender:'CREAGYM', monobank_token:{set:false}, esp32_url:'http://100.x.x.x' };
-    renderIntg(); return;
-  }
   try{
     const r=await fetch('/api/admin/settings',{headers:{Authorization:'Bearer '+adminToken}});
     if(r.status===401){ adminToken=null; store.del('tempo_admin'); dashStarted=false;
@@ -425,7 +416,6 @@ async function saveRow(id){
     if(f.secret){ if(v) body[f.k]=v; }   // порожнє секретне поле = не чіпати збережений токен
     else body[f.k]=v;
   });
-  if(adminToken==='demo'){ toast(meta.name+': збережено (демо)'); return; }
   try{
     const r=await fetch('/api/admin/settings',{method:'POST',
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
@@ -450,9 +440,7 @@ async function tryLogin(){
     const d=await r.json(); adminToken=d.token; store.set('tempo_admin', adminToken);
     enterDash();
   }catch(err){
-    // прев'ю без бекенда — демо-доступ
-    if(email.toLowerCase()===DEMO_EMAIL && pass===DEMO_PASS){ adminToken='demo'; enterDash(); }
-    else $('#admErr').textContent='Бекенд недоступний. Демо: '+DEMO_EMAIL+' / '+DEMO_PASS;
+    $('#admErr').textContent='Сервер недоступний, спробуйте пізніше.';
   }
 }
 function enterDash(){ $('#login').classList.add('hidden'); $('#dash').classList.remove('hidden'); initDash(); }
