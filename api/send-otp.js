@@ -66,9 +66,12 @@ async function sendSms(phone, text) {
       body: JSON.stringify({ recipients: [phone], sms: { sender, text } }),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { console.error('turbosms http', r.status, j); return { ok: false }; }
-    const code = j.response_code ?? (j.response_result?.[0]?.response_code);
-    return { ok: code === 0 || code === undefined, raw: j };
+    if (!r.ok) { console.error('turbosms http', r.status, JSON.stringify(j)); return { ok: false }; }
+    // HTTP 200 = TurboSMS прийняв запит (SMS відправлено). Логуємо відповідь для діагностики.
+    console.log('turbosms ok', JSON.stringify(j));
+    const failed = (typeof j.response_code === 'number' && j.response_code !== 0)
+                || (j.response_status && /fail|error|invalid|reject/i.test(String(j.response_status)));
+    return { ok: !failed, raw: j };
   } catch (e) {
     console.error('turbosms fetch', e);
     return { ok: false };
