@@ -19,10 +19,12 @@ module.exports = async (req, res) => {
         if (card) {
           const last4 = (card.maskedPan || '').slice(-4) || null;
           await dbUpdate('clients', `id=eq.${clientId}`, { card_token: card.cardToken, card_last4: last4 });
+        } else {
+          console.error('wallet empty for', clientId, JSON.stringify(w));
         }
         // скасувати верифікаційний hold (1 грн), щоб клієнта не списало
         if (st.status === 'hold') await mono('/invoice/cancel', { body: { invoiceId } }).catch(() => {});
-      } catch (e) { console.error('wallet fetch', e.message); }
+      } catch (e) { console.error('wallet fetch', e.status, JSON.stringify(e.body || e.message)); }
     }
     return res.status(200).json({ ok: true });
   } catch (e) {
