@@ -1,4 +1,4 @@
-// api/me.js — профіль + локації зі статусом + власна активна сесія. За токеном клієнта.
+// api/me.js — профіль + локації (з тарифами) + власна активна сесія.
 const { requireClient, dbSelect } = require('./_lib');
 
 module.exports = async (req, res) => {
@@ -9,17 +9,15 @@ module.exports = async (req, res) => {
     const c = cs[0];
     if (!c) return res.status(404).json({ error: 'no_client' });
 
-    // усі активні локації + які з них зайняті
     const locs = await dbSelect('locations', `active=eq.true&order=number.asc`);
     const open = await dbSelect('sessions', `ended_at=is.null`);
     const busyByLoc = new Set(open.map(s => s.location_id));
 
     const locations = locs.map(l => ({
-      number: l.number, name: l.name, address: l.address || '',
-      busy: busyByLoc.has(l.id),
+      number: l.number, name: l.name, address: l.address || '', busy: busyByLoc.has(l.id),
+      rate_night: l.rate_night, rate_day: l.rate_day, rate_prime: l.rate_prime, hold: l.hold,
     }));
 
-    // власна активна сесія
     const mine = open.find(s => s.client_id === clientId) || null;
     let active = null;
     if (mine) {

@@ -1,6 +1,6 @@
 // api/end-session.js — завершення: finalize фактичної суми, решта holdʼа відпускається.
 const { requireClient, dbSelect, dbUpdate, mono } = require('./_lib');
-const { HOLD } = require('./_tariff');
+const { DEFAULT_HOLD } = require('./_tariff');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
@@ -11,9 +11,10 @@ module.exports = async (req, res) => {
     const s = rows[0];
     if (!s) return res.status(400).json({ error: 'no_session' });
 
+    const cap = s.hold || DEFAULT_HOLD;
     const minutes = Math.max(1, Math.ceil((Date.now() - new Date(s.started_at).getTime()) / 60000));
     let amount = Math.round((s.rate / 60) * minutes);   // ₴
-    if (amount > HOLD) amount = HOLD;                    // не більше депозиту
+    if (amount > cap) amount = cap;                       // не більше депозиту
 
     // finalize холду на фактичну суму (часткова фіналізація відпускає решту)
     await mono('/invoice/finalize', { body: { invoiceId: s.hold_id, amount: amount * 100 } });
