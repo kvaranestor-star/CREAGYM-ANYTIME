@@ -108,6 +108,20 @@
   .locrun{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
   .clock.sm{font-family:var(--mono);font-weight:700;font-size:22px;letter-spacing:-1px;font-variant-numeric:tabular-nums}
   .locidle{margin-top:10px;font-size:12.5px;color:var(--faint)}
+  /* location settings editor */
+  .locset{background:var(--surface2);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px}
+  .locset:last-child{margin-bottom:0}
+  .locset-h{font-family:var(--disp);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:11px}
+  .locset .if{margin-bottom:9px}
+  .locset label{display:block;font-size:11px;color:var(--faint);margin:0 0 5px}
+  .locset input{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:10px 11px;font-size:14px}
+  .locset input.nm{flex:1;background:var(--bg);font-family:var(--disp);font-weight:600;padding:8px 10px}
+  .locset input:focus{outline:none;border-color:var(--go)}
+  .locset .tri{display:flex;gap:8px}
+  .locset .tri .if{flex:1}
+  .locset .acts{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+  .locset .chk{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+  .locset .chk input{width:auto}
 
   @media(max-width:860px){.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
 
@@ -192,33 +206,14 @@
     <!-- RIGHT -->
     <div>
       <div class="card">
-        <p class="eyebrow">Обладнання · ESP32-S3</p>
-        <div class="hw" id="hw"></div>
-        <div class="esp">
-          <span>Heartbeat</span><b id="hb">щойно</b>
-        </div>
-      </div>
-
-      <div class="card">
-        <p class="eyebrow">Сповіщення</p>
-        <div id="alerts"></div>
-      </div>
-
-      <div class="card">
-        <p class="eyebrow">Тарифи та ліміти</p>
-        <div id="tarBox"></div>
-        <div class="settings">
-          <div class="set"><label>Депозит-блок ₴</label><input id="setHold" value="300" inputmode="numeric"></div>
-          <div class="set"><label>Ліміт сесії, год</label><input id="setCap" value="3" inputmode="numeric"></div>
-          <div class="set"><label>Авто-стоп без руху, хв</label><input id="setIdle" value="10" inputmode="numeric"></div>
-        </div>
-        <button class="save" id="saveBtn">Зберегти налаштування</button>
+        <p class="eyebrow">Налаштування локацій</p>
+        <div id="locSettings"></div>
       </div>
 
       <div class="card">
         <p class="eyebrow">Інтеграції</p>
         <div class="intg" id="intg"></div>
-        <p class="note">Токени зберігаються на боці сервера (Vercel env / Supabase), а не в браузері. Тут показано замасковано. TurboSMS використовується і для кодів підтвердження клієнтам.</p>
+        <p class="note">Токени зберігаються на боці сервера (Vercel env / Supabase), а не в браузері. TurboSMS використовується і для кодів підтвердження клієнтам.</p>
       </div>
     </div>
   </div>
@@ -232,15 +227,6 @@
    ESP32 heartbeat -> таблиця device_state, виручка -> view над sessions.
 ===================================================================== */
 
-const TARIFFS=[
-  {id:'night',name:'Ніч', label:'00:00 – 07:00', rate:60},
-  {id:'day',  name:'День',label:'07:00 – 18:00', rate:80},
-  {id:'prime',name:'Прайм',label:'18:00 – 24:00',rate:120},
-];
-
-// ---- ДОСТУП ВЛАСНИКА ----
-// Логін/пароль перевіряються на сервері (/api/admin/login, env ADMIN_EMAIL/ADMIN_PASSWORD).
-
 // ---- Інтеграції: опис полів. Значення приходять із /api/admin/settings ----
 const INTG=[
   { id:'turbosms', name:'TurboSMS', badge:'SMS-коди клієнтам', led:'on',
@@ -248,8 +234,6 @@ const INTG=[
              {k:'turbosms_sender', label:'Sender / Alpha-name'} ], test:true },
   { id:'monobank', name:'Monobank Acquiring', badge:'оплата · hold/capture', led:'off',
     fields:[ {k:'monobank_token', label:'X-Token', secret:true} ], test:false },
-  { id:'esp32', name:'ESP32 контролер', badge:'замок дверей', led:'on',
-    fields:[ {k:'esp32_url', label:'Базовий URL (Tailscale)'} ], test:true },
 ];
 let adminToken=null, curSettings={};
 const store={
@@ -258,35 +242,8 @@ const store={
   del(k){ try{localStorage.removeItem(k);}catch(e){ if(this._m) delete this._m[k]; } },
 };
 
-// ---- MOCK дані (заміни на Supabase select/realtime) ----
-const data={
-  gymBusy:true,
-  live:{ client:'Андрій К.', startedAt:Date.now()-1000*60*37, rate:120, tariff:'Прайм' },
-  kpis:[
-    {k:'Виручка сьогодні', v:'₴1 840', sub:'14 сесій', d:'+12% до сер.'},
-    {k:'Цей тиждень', v:'₴11 260', sub:'78 сесій', d:'+6%'},
-    {k:'Завантаження', v:'41%', sub:'год прайму', d:'ціль 60%'},
-    {k:'Сер. чек', v:'₴131', sub:'за сесію', d:'58 хв'},
-  ],
-  sessions:[
-    {time:'19:23', client:'Андрій К.', dur:'активна', sum:'…', live:true},
-    {time:'18:05', client:'Марія Д.', dur:'01:12', sum:'₴144'},
-    {time:'16:40', client:'Тренер · Ігор', dur:'00:55', sum:'₴73'},
-    {time:'12:18', client:'Олег В.', dur:'00:47', sum:'₴63'},
-    {time:'08:02', client:'Тренер · Ігор', dur:'01:30', sum:'₴120'},
-  ],
-  hw:[
-    {n:'Вхідний замок', sub:'реле 1', s:'відчинено', led:'warn'},
-    {n:'Двері (геркон)', sub:'GPIO 4', s:'зачинені', led:'on'},
-    {n:'Датчик руху', sub:'PIR · GPIO 5', s:'є рух', led:'on'},
-    {n:'Тривога / SOS', sub:'кнопка', s:'норма', led:'on'},
-  ],
-  alerts:[
-    {crit:false, ic:'✓', t:'Сесію закрито автоматично', s:'Олег В. · вихід + 10 хв без руху · 12:18'},
-    {crit:false, ic:'₴', t:'Capture виконано', s:'Марія Д. · ₴144 списано · 18:05'},
-    {crit:true,  ic:'!', t:'Рух у залі без активної брони', s:'09 чер 23:14 · перевір запис камери'},
-  ],
-};
+// живі дані (заповнюються з /api/admin/state)
+const data={ busyCount:0, locations:[], sessions:[], kpis:[] };
 
 const $=s=>document.querySelector(s);
 const pad=n=>String(n).padStart(2,'0');
@@ -323,20 +280,55 @@ function renderKpis(){
   $('#kpis').innerHTML=data.kpis.map(x=>`
     <div class="kpi"><span>${x.k}</span><b>${x.v}</b><i>${x.sub}</i>${x.d?`<span class="delta">${x.d}</span>`:''}</div>`).join('');
 }
-function renderHw(){
-  $('#hw').innerHTML=data.hw.map(h=>`
-    <div class="hwitem"><div class="n">${h.n}<span>${h.sub}</span></div>
-    <div class="s"><span class="led ${h.led}"></span>${h.s}</div></div>`).join('');
+function renderLocSettings(){
+  const el=$('#locSettings');
+  const L=data.locations||[];
+  if(!L.length){ el.innerHTML='<div style="color:var(--faint);font-size:13px">Локацій ще немає. Додайте їх у таблиці locations.</div>'; return; }
+  el.innerHTML = L.map(l=>`
+    <div class="locset" data-num="${l.number}">
+      <div class="locset-h">№${l.number} · <input class="nm" data-f="name" value="${l.name||''}"></div>
+      <div class="if"><label>Адреса</label><input data-f="address" value="${l.address||''}"></div>
+      <div class="tri">
+        <div class="if"><label>Ніч ₴/год</label><input data-f="rate_night" inputmode="numeric" value="${l.rate_night??60}"></div>
+        <div class="if"><label>День ₴/год</label><input data-f="rate_day" inputmode="numeric" value="${l.rate_day??80}"></div>
+        <div class="if"><label>Прайм ₴/год</label><input data-f="rate_prime" inputmode="numeric" value="${l.rate_prime??120}"></div>
+      </div>
+      <div class="tri">
+        <div class="if"><label>Депозит ₴</label><input data-f="hold" inputmode="numeric" value="${l.hold??300}"></div>
+        <div class="if" style="flex:2"><label>ESP32 URL</label><input data-f="esp32_url" value="${l.esp32_url||''}"></div>
+      </div>
+      <div class="acts">
+        <label class="chk"><input type="checkbox" data-f="active" ${l.active?'checked':''}> активна</label>
+        <button class="btn pri" data-save="${l.number}">Зберегти зал</button>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>saveLoc(b.dataset.save));
 }
-function renderAlerts(){
-  $('#alerts').innerHTML=data.alerts.map(a=>`
-    <div class="alert ${a.crit?'crit':''}"><div class="ic">${a.ic}</div>
-    <div class="t">${a.t}<span>${a.s}</span></div></div>`).join('');
+
+async function loadLocations(){
+  try{
+    const r=await fetch('/api/admin/locations',{headers:{Authorization:'Bearer '+adminToken}});
+    if(!r.ok) throw new Error(r.status);
+    const d=await r.json();
+    data.locations = d.locations||[];
+    renderLocSettings();
+  }catch(e){ $('#locSettings').innerHTML='<div style="color:var(--danger);font-size:13px">Не вдалося завантажити локації</div>'; }
 }
-function renderTariffs(){
-  $('#tarBox').innerHTML=TARIFFS.map(t=>`
-    <div class="tarrow"><div class="nm">${t.name}<span>${t.label}</span></div>
-    <input value="${t.rate}" inputmode="numeric"><div class="u">₴/год</div></div>`).join('');
+
+async function saveLoc(num){
+  const row=$(`.locset[data-num="${num}"]`);
+  const body={ number:Number(num) };
+  row.querySelectorAll('[data-f]').forEach(inp=>{
+    const f=inp.dataset.f;
+    body[f] = inp.type==='checkbox' ? inp.checked : inp.value.trim();
+  });
+  try{
+    const r=await fetch('/api/admin/locations',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+adminToken},
+      body:JSON.stringify(body)});
+    if(!r.ok) throw new Error(r.status);
+    toast('Зал №'+num+' збережено');
+  }catch(e){ toast('Помилка збереження',true); }
 }
 function renderSessions(){
   if(!data.sessions || !data.sessions.length){ $('#sessRows').innerHTML='<tr><td colspan="4" style="color:var(--faint);padding:16px 0">Сьогодні сесій ще не було</td></tr>'; return; }
@@ -378,9 +370,6 @@ function tickLive(){
     if(!any) clearInterval(liveTimer);
   };
   upd(); liveTimer=setInterval(upd,1000);
-}
-function tickHeartbeat(){
-  setInterval(()=>{ $('#hb').textContent='щойно'; }, 5000);
 }
 
 function renderIntg(){
@@ -440,7 +429,6 @@ async function saveRow(id){
   }catch(e){ toast('Помилка збереження',true); }
 }
 
-$('#saveBtn').onclick=()=>toast('Налаштування збережено');
 $('#admLogout').onclick=()=>{ adminToken=null; store.del('tempo_admin'); $('#dash').classList.add('hidden'); $('#login').classList.remove('hidden'); $('#admPass').value=''; };
 
 /* ---- Login gate (без реєстрації) ---- */
@@ -465,8 +453,8 @@ $('#admPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); })
 let dashStarted=false, statePoll=null;
 function initDash(){
   if(dashStarted) return; dashStarted=true;
-  renderHead(); renderKpis(); renderHw(); renderAlerts(); renderTariffs(); renderSessions(); renderLocations(); tickHeartbeat();
-  loadSettings();
+  renderHead(); renderKpis(); renderSessions(); renderLocations();
+  loadSettings(); loadLocations();
   loadState(); clearInterval(statePoll); statePoll=setInterval(loadState, 5000); // живі дані кожні 5с
 }
 

@@ -109,3 +109,11 @@ insert into locations (number, name, address) values
   (2, 'CREAGYM Клосовського',  'вул. Клосовського 10'),
   (3, 'CREAGYM Новосінна',     'вул. Новосінна 34')
 on conflict (number) do nothing;
+
+-- ТАРИФИ ПО ЛОКАЦІЯХ (₴/год) + депозит ----------------------
+alter table locations add column if not exists rate_night int default 60;
+alter table locations add column if not exists rate_day   int default 80;
+alter table locations add column if not exists rate_prime int default 120;
+alter table locations add column if not exists hold       int default 300;
+-- депозит, застосований на старті конкретної сесії
+alter table sessions  add column if not exists hold int;
