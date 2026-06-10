@@ -142,6 +142,13 @@
   .pay .pl span{display:block;font-size:12px;color:var(--faint);margin-top:1px}
   .pay .act{font-size:13px;color:var(--go);cursor:pointer;font-weight:600;white-space:nowrap}
   .pay.empty .picon{background:repeating-linear-gradient(45deg,#1C2027,#1C2027 6px,#15181d 6px,#15181d 12px)}
+  /* location selector */
+  .loc .locrow{display:flex;align-items:stretch;gap:12px}
+  .loc input{width:84px;flex:none;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:12px;text-align:center;font-family:var(--mono);font-weight:700;font-size:26px}
+  .loc input:focus{outline:none;border-color:var(--go)}
+  .locinfo{flex:1;display:flex;flex-direction:column;justify-content:center;font-size:14px;color:var(--muted);line-height:1.4}
+  .locinfo b{color:var(--text);font-family:var(--disp);font-weight:600;font-size:16px}
+  .locinfo .free{color:var(--ok)} .locinfo .busy{color:var(--danger)}
   /* bottom sheet */
   .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:20;display:flex;align-items:flex-end;justify-content:center}
   .sheet{background:var(--surface);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:10px 22px max(26px,env(safe-area-inset-bottom));width:100%;max-width:440px;animation:rise .25s ease}
@@ -160,7 +167,6 @@
 
   <!-- ====== SCREEN: AUTH ====== -->
   <section id="screenAuth" class="hidden">
-    <div class="status"><span class="led free"></span><b>Зал у вашому ЖК</b></div>
 
     <div class="tabs" id="authTabs">
       <button id="tabLogin" class="active" type="button">Вхід</button>
@@ -181,7 +187,7 @@
 
     <!-- REGISTER: ім'я + телефон + пароль + повтор -->
     <div id="viewReg" class="hidden">
-      <div class="authhead"><h2>Реєстрація</h2><p>Підтвердимо номер кодом із SMS один раз.</p></div>
+      <div class="authhead"><h2>Реєстрація</h2></div>
       <div class="field"><label>Ім'я</label>
         <input id="regName" type="text" placeholder="Як вас звати" autocomplete="given-name"></div>
       <div class="field"><label>Телефон</label>
@@ -197,7 +203,7 @@
 
     <!-- FORGOT: телефон → код → новий пароль -->
     <div id="viewForgot" class="hidden">
-      <div class="authhead"><h2>Відновлення пароля</h2><p>Надішлемо код на ваш номер.</p></div>
+      <div class="authhead"><h2>Відновлення пароля</h2></div>
       <div class="field"><label>Телефон</label>
         <input id="fgPhone" type="tel" placeholder="+380 __ ___ __ __" inputmode="tel" autocomplete="tel"></div>
       <a class="linklike" id="backToLogin">← Назад до входу</a>
@@ -243,6 +249,14 @@
         <div class="acct-av" id="acctAv">—</div>
       </div>
       <div class="pay" id="payRow"></div>
+    </div>
+
+    <div class="card loc">
+      <p class="eyebrow">Оберіть зал</p>
+      <div class="locrow">
+        <input id="locNum" inputmode="numeric" maxlength="3" placeholder="№">
+        <div class="locinfo" id="locInfo">Введіть номер залу</div>
+      </div>
     </div>
 
     <div class="card">
@@ -347,12 +361,10 @@ const store = {
 const api = {
   token:null,
   user:{ id:null, name:null, phone:null, cardLast4:null },  // профіль клієнта
-  gym:{ status:'free' },                      // 'free' | 'busy'  ← realtime (next)
+  locations:[],                               // [{number,name,address,busy}]
+  selectedLoc:null,                           // обраний номер залу
   session:null,                               // активна сесія
-  history:[                                   // ← /api/history (next)
-    { date:'Вчора, 19:20', dur:'01:05', cost:130 },
-    { date:'08 чер, 07:40', dur:'00:48', cost:64 },
-  ],
+  history:[],
   _pending:null,
 
   _setSession(d){
@@ -435,7 +447,7 @@ const api = {
     }catch(err){ console.warn('attach-card', err.message); return { error:true }; }
   },
 
-  // Оновити профіль/статус залу/власну активну сесію.
+  // Оновити профіль/локації/власну активну сесію.
   async refresh(){
     if(!this.token) return;
     try{
@@ -444,23 +456,25 @@ const api = {
       if(!r.ok) return;
       const d = await r.json();
       this.user.cardLast4 = d.client.card_last4 || null;
-      this.gym.status = d.gymBusy ? 'busy' : 'free';
+      this.locations = d.locations || [];
       this.active = d.active || null;
       const s = store.get('tempo_session'); if(s && s.client){ s.client.card_last4=this.user.cardLast4; store.set('tempo_session', s); }
     }catch(e){}
   },
 
-  // Старт: hold депозиту + відкриття залу. Повертає {ok}|{error}.
-  async startSession(){
+  // Старт у вибраній локації (за номером).
+  async startSession(locNumber){
     if(!this.token) return { error:'network' };
     try{
       const r = await fetch('/api/start-session', { method:'POST',
-        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
+        headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token },
+        body: JSON.stringify({ location: locNumber }) });
+      if(r.status===404) return { error:'bad_location' };
       if(r.status===409){ const e=await r.json().catch(()=>({})); return { error:e.error }; } // no_card|busy
+      if(r.status===400) return { error:'no_location' };
       if(!r.ok) return { error:'charge_failed' };
       const d = await r.json();
-      this.session={ startedAt: new Date(d.startedAt).getTime(), rate:d.rate };
-      this.gym.status='busy';
+      this.session={ startedAt: new Date(d.startedAt).getTime(), rate:d.rate, location:d.location };
       return { ok:true };
     }catch(e){ return { error:'network' }; }
   },
@@ -473,7 +487,7 @@ const api = {
         headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+this.token }, body:'{}' });
       if(!r.ok) return { error:true };
       const d = await r.json();
-      this.session=null; this.gym.status='free';
+      this.session=null;
       return { minutes:d.minutes, amount:d.amount };
     }catch(e){ return { error:true }; }
   },
@@ -530,20 +544,38 @@ function renderHome(){
   // ladder
   $('#ladder').innerHTML=TARIFFS.map(x=>`
     <div class="t ${x.id===t.id?'active':''}">${x.name}<b>${x.rate}₴</b></div>`).join('');
-  // status
-  const free = api.gym.status==='free';
-  $('#homeStatus').innerHTML = free
-    ? '<span class="led free"></span><b>Зал вільний</b>'
-    : '<span class="led busy"></span><b>Зал зайнятий</b>';
-  $('#btnStart').disabled=!free;
-  $('#startHint').textContent = free
-    ? (api.user.cardLast4 ? 'Двері відчиняться одразу після старту.' : 'Перед стартом попросимо прив\u0027язати картку.')
-    : 'Зараз у залі хтось тренується — спробуйте пізніше.';
+  // локація + статус
+  renderLoc();
   // history
   const h=api.history;
   $('#histList').innerHTML = h.length ? h.slice(0,4).map(r=>`
     <div class="hrow"><div class="l">${r.date}<span>${r.dur} год</span></div><div class="r">₴${r.cost}</div></div>`).join('')
     : '<div class="empty">Поки що порожньо</div>';
+}
+
+// відрендерити стан вибору залу + статус + кнопку старту
+function renderLoc(){
+  const loc = api.locations.find(l=> String(l.number)===String(api.selectedLoc));
+  const info=$('#locInfo'), st=$('#homeStatus'), btn=$('#btnStart'), hint=$('#startHint');
+  if(!api.selectedLoc){
+    info.innerHTML='Введіть номер залу';
+    st.innerHTML='<span class="led" style="background:var(--faint)"></span><b>Оберіть зал</b>';
+    btn.disabled=true; hint.textContent='Вкажіть номер залу, у якому ви зараз.';
+    return;
+  }
+  if(!loc){
+    info.innerHTML='<b>Зал не знайдено</b><span>Перевірте номер</span>';
+    st.innerHTML='<span class="led busy"></span><b>Невідомий зал</b>';
+    btn.disabled=true; hint.textContent='Такого номера немає.';
+    return;
+  }
+  info.innerHTML=`<b>${loc.name}</b><span class="${loc.busy?'busy':'free'}">${loc.address||''} · ${loc.busy?'зайнятий':'вільний'}</span>`;
+  st.innerHTML = loc.busy
+    ? '<span class="led busy"></span><b>Зал зайнятий</b>'
+    : '<span class="led free"></span><b>Зал вільний</b>';
+  btn.disabled = loc.busy;
+  hint.textContent = loc.busy ? 'Зараз тут хтось тренується — спробуйте пізніше.'
+    : (api.user.cardLast4 ? 'Двері відчиняться одразу після старту.' : 'Перед стартом попросимо прив\u0027язати картку.');
 }
 
 function startTicker(){
@@ -704,19 +736,26 @@ $('#btnAttach').onclick=async e=>{
 };
 
 /* --------------------------- Events --------------------------------- */
+$('#locNum').addEventListener('input', e=>{
+  e.target.value = e.target.value.replace(/\D/g,'').slice(0,3);
+  api.selectedLoc = e.target.value || null;
+  renderLoc();
+});
+
 async function doStart(){
   const b=$('#btnStart');
   b.disabled=true; b.textContent='Відчиняємо двері…';
-  const r=await api.startSession();
+  const r=await api.startSession(api.selectedLoc);
   b.textContent='Почати тренування'; b.disabled=false;
   if(r.error==='no_card'){ startAfterCard=true; openCard(); toast('Спочатку прив\u0027яжіть картку'); return; }
-  if(r.error==='busy'){ toast('Зал зараз зайнятий',true); renderHome(); return; }
+  if(r.error==='busy'){ toast('Зал зараз зайнятий',true); await api.refresh(); renderLoc(); return; }
+  if(r.error==='bad_location'||r.error==='no_location'){ toast('Оберіть коректний номер залу',true); return; }
   if(r.error){ toast('Не вдалося списати депозит — перевірте картку',true); return; }
   startTicker(); show('live');
   toast(`Депозит-блок ₴${HOLD} · двері відчинені`);
 }
 $('#btnStart').onclick=()=>{
-  if(api.gym.status!=='free'){ toast('Зал зараз зайнятий',true); return; }
+  if(!api.selectedLoc){ toast('Спочатку введіть номер залу',true); $('#locNum').focus(); return; }
   if(!api.user.cardLast4){ startAfterCard=true; openCard(); toast('Спочатку прив\u0027яжіть картку'); return; }
   doStart();
 };
