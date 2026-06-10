@@ -87,3 +87,25 @@ alter table otp_codes    enable row level security;
 alter table app_sessions enable row level security;
 alter table settings      enable row level security;
 alter table admin_sessions enable row level security;
+
+-- ЛОКАЦІЇ (зали) ---------------------------------------------
+create table if not exists locations (
+  id          uuid primary key default gen_random_uuid(),
+  number      int unique not null,         -- порядковий номер, який вводить клієнт
+  name        text not null,
+  address     text,
+  esp32_url   text,                          -- свій контролер на кожну локацію
+  active      boolean default true,
+  created_at  timestamptz default now()
+);
+alter table locations enable row level security;
+
+-- прив'язка сесії до локації
+alter table sessions add column if not exists location_id uuid references locations(id);
+
+-- засів локацій CREAGYM (зміни під себе)
+insert into locations (number, name, address) values
+  (1, 'CREAGYM Бандери',      'вул. Бандери 3'),
+  (2, 'CREAGYM Клосовського',  'вул. Клосовського 10'),
+  (3, 'CREAGYM Новосінна',     'вул. Новосінна 34')
+on conflict (number) do nothing;
