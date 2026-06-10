@@ -96,6 +96,18 @@
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:#fff;color:#000;font-size:13px;font-weight:500;padding:11px 16px;border-radius:12px;transition:.25s;pointer-events:none;z-index:10}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .hidden{display:none !important}
+  /* location cards */
+  .loccard{background:var(--surface2);border:1px solid var(--line);border-radius:13px;padding:14px 15px;margin-bottom:10px}
+  .loccard:last-child{margin-bottom:0}
+  .loccard.busy{border-color:var(--go)}
+  .lochead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .locname{font-family:var(--disp);font-weight:600;font-size:15px;display:flex;align-items:center;gap:9px}
+  .locname .led{width:9px;height:9px;border-radius:50%}
+  .locname .led.free{background:var(--ok);box-shadow:0 0 8px var(--ok)} .locname .led.busy{background:var(--go);box-shadow:0 0 8px var(--go)}
+  .locstate{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+  .locrun{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .clock.sm{font-family:var(--mono);font-weight:700;font-size:22px;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+  .locidle{margin-top:10px;font-size:12.5px;color:var(--faint)}
 
   @media(max-width:860px){.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
 
@@ -137,7 +149,6 @@
   <div class="login">
     <div class="brand"><span class="dot"></span>tempo <small>панель</small></div>
     <h2>Вхід для власника</h2>
-    <p class="s">Доступ лише за виданими обліковими даними. Реєстрації немає.</p>
     <div class="f"><label>Пошта</label><input id="admEmail" type="email" placeholder="owner@tempo.ua" autocomplete="username"></div>
     <div class="f"><label>Пароль</label><input id="admPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <p class="err" id="admErr"></p>
@@ -165,14 +176,14 @@
     <!-- LEFT -->
     <div>
       <div class="card">
-        <p class="eyebrow">Зараз у залі</p>
+        <p class="eyebrow">Локації</p>
         <div id="liveBlock"></div>
       </div>
 
       <div class="card">
         <p class="eyebrow">Сесії сьогодні</p>
         <table>
-          <thead><tr><th>Час</th><th>Клієнт</th><th class="mono">Тривалість</th><th class="mono r">Сума</th></tr></thead>
+          <thead><tr><th>Час</th><th>Клієнт</th><th class="mono">Зал</th><th class="mono r">Сума</th></tr></thead>
           <tbody id="sessRows"></tbody>
         </table>
       </div>
@@ -283,9 +294,9 @@ const fmtHMS=sec=>{sec=Math.floor(sec);const h=Math.floor(sec/3600),m=Math.floor
 function toast(m){const t=$('#toast');t.textContent=m;t.className='toast show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2400)}
 
 function renderHead(){
-  const busy=data.gymBusy;
+  const busy=data.busyCount>0;
   $('#gymLed').className='led '+(busy?'warn':'on');
-  $('#gymState').textContent=busy?'Зал зайнятий':'Зал вільний';
+  $('#gymState').textContent = busy ? (data.busyCount+' зал(и) зайнято') : 'Усі зали вільні';
 }
 
 // живі дані з /api/admin/state
@@ -296,16 +307,16 @@ async function loadState(){
       $('#dash').classList.add('hidden'); $('#login').classList.remove('hidden'); return; }
     if(!r.ok) return;
     const d=await r.json();
-    data.gymBusy = d.gymBusy;
-    data.live = d.live ? { client:d.live.client, startedAt:new Date(d.live.startedAt).getTime(), rate:d.live.rate, tariff:d.live.tariff } : null;
-    data.sessions = (d.sessions||[]).map(s=>({ time:s.time, client:s.client, live:s.live, sum:s.amount!=null?('₴'+s.amount):(s.live?'…':'—'), dur:s.live?'активна':'' }));
+    data.busyCount = d.busyCount||0;
+    data.locations = (d.locations||[]).map(l=>({ ...l, startedAt: l.live? new Date(l.live.startedAt).getTime():0 }));
+    data.sessions = (d.sessions||[]).map(s=>({ time:s.time, client:s.client, loc:s.loc, live:s.live, sum:s.amount!=null?('₴'+s.amount):(s.live?'…':'—') }));
     data.kpis = [
       {k:'Виручка сьогодні', v:'₴'+(d.revenueToday||0), sub:(d.countToday||0)+' сесій', d:''},
-      {k:'Активна сесія', v:d.gymBusy?'1':'0', sub:d.gymBusy?'зал зайнятий':'зал вільний', d:''},
+      {k:'Зайнято зараз', v:String(d.busyCount||0), sub:'із '+(d.locations?.length||0)+' залів', d:''},
       {k:'Сесій сьогодні', v:String(d.countToday||0), sub:'завершених', d:''},
-      {k:'Статус', v:d.gymBusy?'Зайнято':'Вільно', sub:'зараз', d:''},
+      {k:'Локацій', v:String(d.locations?.length||0), sub:'активних', d:''},
     ];
-    renderHead(); renderKpis(); renderSessions(); renderLive();
+    renderHead(); renderKpis(); renderSessions(); renderLocations();
   }catch(e){}
 }
 function renderKpis(){
@@ -328,44 +339,48 @@ function renderTariffs(){
     <input value="${t.rate}" inputmode="numeric"><div class="u">₴/год</div></div>`).join('');
 }
 function renderSessions(){
+  if(!data.sessions || !data.sessions.length){ $('#sessRows').innerHTML='<tr><td colspan="4" style="color:var(--faint);padding:16px 0">Сьогодні сесій ще не було</td></tr>'; return; }
   $('#sessRows').innerHTML=data.sessions.map(s=>`
     <tr><td class="mono">${s.time}</td><td>${s.client}</td>
-    <td class="mono ${s.live?'tagok':''}">${s.dur}</td>
+    <td class="mono ${s.live?'tagok':''}">${s.loc||''}${s.live?' · активна':''}</td>
     <td class="mono r">${s.sum}</td></tr>`).join('');
 }
-function renderLive(){
+function renderLocations(){
   const el=$('#liveBlock');
-  if(!data.live){ el.innerHTML='<div class="idlebox">Зал вільний. Чекаємо на наступну сесію.</div>'; return; }
-  const L=data.live;
-  el.innerHTML=`
-    <div class="livewrap">
-      <div>
-        <div class="clock" id="liveClock">00:00:00</div>
-        <div class="livecost">₴<b id="liveCost">0.00</b></div>
+  const L=data.locations||[];
+  if(!L.length){ el.innerHTML='<div class="idlebox">Локацій ще немає.</div>'; return; }
+  el.innerHTML = L.map(l=>`
+    <div class="loccard ${l.busy?'busy':''}">
+      <div class="lochead">
+        <div class="locname"><span class="led ${l.busy?'busy':'free'}"></span>№${l.number} · ${l.name}</div>
+        <div class="locstate">${l.busy?'зайнятий':'вільний'}</div>
       </div>
-      <div class="live-meta">
-        <span class="chip">Клієнт <b>${L.client}</b></span>
-        <span class="chip">Тариф <b>${L.tariff} · ${L.rate}₴/год</b></span>
-        <span class="chip">Двері <b>відчинені</b></span>
-      </div>
-    </div>`;
+      ${l.busy && l.live ? `
+        <div class="locrun">
+          <span class="clock sm" data-n="${l.number}">00:00:00</span>
+          <span class="chip">${l.live.client}</span>
+          <span class="chip">${l.live.tariff} · ${l.live.rate}₴/год</span>
+        </div>` : `<div class="locidle">Готовий до старту</div>`}
+    </div>`).join('');
   tickLive();
 }
 let liveTimer=null;
 function tickLive(){
   clearInterval(liveTimer);
-  const L=data.live;
   const upd=()=>{
-    const sec=(Date.now()-L.startedAt)/1000;
-    const c=document.getElementById('liveClock'); if(!c)return clearInterval(liveTimer);
-    c.textContent=fmtHMS(sec);
-    document.getElementById('liveCost').textContent=((L.rate/3600)*sec).toFixed(2);
+    let any=false;
+    (data.locations||[]).forEach(l=>{
+      if(!l.busy || !l.startedAt) return;
+      const c=document.querySelector(`.clock[data-n="${l.number}"]`); if(!c) return;
+      any=true;
+      c.textContent=fmtHMS((Date.now()-l.startedAt)/1000);
+    });
+    if(!any) clearInterval(liveTimer);
   };
   upd(); liveTimer=setInterval(upd,1000);
 }
 function tickHeartbeat(){
-  let s=0; setInterval(()=>{ s++; $('#hb').textContent = s<2?'щойно':`${s} с тому`; if(s>=2&&s<3){} }, 1000);
-  setInterval(()=>{ $('#hb').textContent='щойно'; }, 5000); // імітація heartbeat кожні 5с
+  setInterval(()=>{ $('#hb').textContent='щойно'; }, 5000);
 }
 
 function renderIntg(){
@@ -450,7 +465,7 @@ $('#admPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); })
 let dashStarted=false, statePoll=null;
 function initDash(){
   if(dashStarted) return; dashStarted=true;
-  renderHead(); renderKpis(); renderHw(); renderAlerts(); renderTariffs(); renderSessions(); renderLive(); tickHeartbeat();
+  renderHead(); renderKpis(); renderHw(); renderAlerts(); renderTariffs(); renderSessions(); renderLocations(); tickHeartbeat();
   loadSettings();
   loadState(); clearInterval(statePoll); statePoll=setInterval(loadState, 5000); // живі дані кожні 5с
 }
