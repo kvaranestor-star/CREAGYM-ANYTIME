@@ -1,4 +1,4 @@
-// api/me.js — профіль клієнта + статус залу + власна активна сесія. За токеном клієнта.
+// api/me.js — профіль + локації зі статусом + власна активна сесія. За токеном клієнта.
 const { requireClient, dbSelect } = require('./_lib');
 
 module.exports = async (req, res) => {
@@ -9,14 +9,28 @@ module.exports = async (req, res) => {
     const c = cs[0];
     if (!c) return res.status(404).json({ error: 'no_client' });
 
-    const open = await dbSelect('sessions', `ended_at=is.null&limit=1`);
-    const busy = !!open[0];
-    const mine = open[0] && open[0].client_id === clientId ? open[0] : null;
+    // усі активні локації + які з них зайняті
+    const locs = await dbSelect('locations', `active=eq.true&order=number.asc`);
+    const open = await dbSelect('sessions', `ended_at=is.null`);
+    const busyByLoc = new Set(open.map(s => s.location_id));
+
+    const locations = locs.map(l => ({
+      number: l.number, name: l.name, address: l.address || '',
+      busy: busyByLoc.has(l.id),
+    }));
+
+    // власна активна сесія
+    const mine = open.find(s => s.client_id === clientId) || null;
+    let active = null;
+    if (mine) {
+      const loc = locs.find(l => l.id === mine.location_id);
+      active = { startedAt: mine.started_at, rate: mine.rate, tariff: mine.tariff,
+                 location: loc ? { number: loc.number, name: loc.name } : null };
+    }
 
     return res.status(200).json({
       client: { id: c.id, name: c.name, phone: c.phone, card_last4: c.card_last4 || null },
-      gymBusy: busy,
-      active: mine ? { startedAt: mine.started_at, rate: mine.rate, tariff: mine.tariff } : null,
+      locations, active,
     });
   } catch (e) {
     console.error('me', e.message);
